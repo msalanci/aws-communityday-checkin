@@ -48,12 +48,12 @@ variable "domain_name" {
 
 variable "subdomain" {
   type        = string
-  description = "The scanner page lives at <subdomain>.<domain_name>."
+  description = "The scanner page lives at <subdomain>.<domain_name>; empty puts it at <domain_name> itself, for a zone made just for the page."
   default     = "checkin"
 
   validation {
-    condition     = can(regex("^[a-z0-9-]{1,63}$", var.subdomain))
-    error_message = "The subdomain must be 1-63 lowercase letters, digits or hyphens."
+    condition     = can(regex("^[a-z0-9-]{0,63}$", var.subdomain))
+    error_message = "The subdomain must be empty or 1-63 lowercase letters, digits or hyphens."
   }
 }
 

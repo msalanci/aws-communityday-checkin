@@ -39,18 +39,18 @@ There are three places you work in:
 | **AWS account** | With an admin user or role you can use from the AWS CLI. Everything runs in this one account. |
 | **A domain in Route 53** | The scanner page gets its own address, `checkin.<your domain>`, so you need a **public hosted zone in Route 53, in the same AWS account**. Terraform only adds records to it; it never changes the zone. See below if your DNS is somewhere else. |
 
-**If your domain's DNS is elsewhere** (another DNS provider, or Route 53 in another AWS account), hand one subdomain over to this account:
+**If your domain's DNS is elsewhere** (another DNS provider, or Route 53 in another AWS account), hand just the page's own name, for example `checkin.example.org`, over to this account:
 
-1. In this AWS account, create a public hosted zone for a subdomain, for example `events.example.org`:
+1. In this AWS account, create a public hosted zone for that name:
    ```bash
-   aws route53 create-hosted-zone --name events.example.org --caller-reference "$(date +%s)"
+   aws route53 create-hosted-zone --name checkin.example.org --caller-reference "$(date +%s)"
    ```
    The answer lists the zone's four name servers (`DelegationSet.NameServers`).
-2. At your DNS provider, add an **NS** record named `events` in `example.org` with those four name servers.
-3. Check that it works (it can take a few minutes): `dig NS events.example.org +short` shows the four AWS name servers.
-4. Use `events.example.org` as your domain below. The page will then be `https://checkin.events.example.org`.
+2. At your DNS provider, in the zone `example.org`, add an **NS** record named `checkin` with those four name servers.
+3. Check that it works (it can take a few minutes): `dig NS checkin.example.org +short` shows the four AWS name servers.
+4. In step 3.3 set `domain_name = "checkin.example.org"` and `subdomain = ""`. The page is then `https://checkin.example.org`.
 
-A hosted zone costs $0.50 a month.
+The zone costs $0.50 a month. If you ever delete it, remove the NS record at your DNS provider first, or someone else could claim the name.
 
 ### The admin computer (macOS or Linux)
 
@@ -174,8 +174,8 @@ cd ..
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `domain_name` | — (required) | Your Route 53 zone, e.g. `example.org` or `events.example.org` |
-| `subdomain` | `checkin` | The page lives at `https://<subdomain>.<domain_name>` |
+| `domain_name` | — (required) | Your Route 53 zone, e.g. `example.org`, or `checkin.example.org` for a zone made just for the page |
+| `subdomain` | `checkin` | The page lives at `https://<subdomain>.<domain_name>`; set `""` to put it at `domain_name` itself |
 | `aws_region` | `eu-central-1` | Region for everything, the certificate included |
 | `event_timezone` | `Europe/Bratislava` | Your event's time zone, for "Already checked in at 09:14" |
 | `name_prefix` | `cd-registration` | Prefix of every AWS resource name |

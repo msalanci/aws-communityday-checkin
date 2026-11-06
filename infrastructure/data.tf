@@ -14,7 +14,7 @@ data "aws_route53_zone" "parent" {
 }
 
 locals {
-  scanner_host = "${var.subdomain}.${var.domain_name}"
+  scanner_host = var.subdomain == "" ? var.domain_name : "${var.subdomain}.${var.domain_name}"
   lambda_dir   = "${path.module}/../app/lambda"
   build_dir    = "${path.module}/.build"
 }
