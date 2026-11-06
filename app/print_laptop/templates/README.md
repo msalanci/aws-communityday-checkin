@@ -13,4 +13,4 @@ The two P-touch Editor templates the print program fills. Copy both to the **Des
 
 The program finds each line by its placeholder text (capitals do not matter), so keep the placeholders as they are; the `.env` puts the real texts in (`STICKER_ATTENDEE_TEXT`, `STICKER_YEAR_TEXT`), and its font settings win over the template's.
 
-**Another roll or another length:** open a template in P-touch Editor, choose your roll (File → Printer/Page Setup → Check Media) and length, keep the boxes and their placeholders, and save it under a new name on the Desktop; then point `TEMPLATE_PATH` (and `TEMPLATE_2LINE_PATH`) at it.
+**Another roll or another length:** open the template from the print computer's Desktop in P-touch Editor, choose your roll (File → Printer/Page Setup → Check Media) and length, keep the boxes and their placeholders, and save it: under the same name, or under a new name and then point `TEMPLATE_PATH` (or `TEMPLATE_2LINE_PATH`) in the `.env` at it. Do the same with the other template. Then set `ROLL` in the `.env` to the loaded roll's name as `print_laptop.py --check` shows it.
