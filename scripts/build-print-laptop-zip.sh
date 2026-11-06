@@ -6,8 +6,9 @@
 #
 # Usage: scripts/build-print-laptop-zip.sh
 #
-# Takes the program files and the filled-in .env from app/print_laptop/ (a symlinked .env is followed),
-# and leaves out the sticker template (it lives on the laptop), printed_ids.txt and caches. The zip holds
+# Takes the program files and the filled-in .env from app/print_laptop/ (a symlinked .env is followed), and
+# leaves out the sticker templates (they are copied to the print computer's Desktop once, so a zip never
+# overwrites a template edited there), printed_ids.txt, the lock file and caches. The zip holds
 # the .env's settings, so dist/ is git-ignored. Unzip it on the laptop, then run
 # "py -3.14 -m pip install --only-binary=:all: -r requirements.txt" once in that folder.
 
