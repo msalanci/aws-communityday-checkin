@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- Copyright (c) 2026-2027 Michal Salanci. SPDX-License-Identifier: MIT -->
+<!--
+  The scanner page that staff open on their phones: the PIN screen, the camera that reads ticket QR codes,
+  and the result card. Served by the web Lambda; its script calls the API on the same origin.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Check-in</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <section id="pin-screen" class="screen" hidden>
+      <h1>Check-in</h1>
+      <p id="pin-message" class="warning" hidden></p>
+      <label for="pin">Staff PIN</label>
+      <input id="pin" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+      <button id="start" type="button" class="primary">Start</button>
+    </section>
+
+    <section id="app" class="screen" hidden>
+      <nav class="top-bar">
+        <span class="tab active">Scan</span>
+        <button id="change-pin" type="button" class="link">Change PIN</button>
+      </nav>
+
+      <div id="card" class="card" hidden>
+        <p id="card-name" class="card-name" hidden></p>
+        <p id="card-message" class="card-message"></p>
+        <button id="card-action" type="button" class="primary" hidden></button>
+      </div>
+
+      <div id="reader" class="reader"></div>
+      <p id="camera-message" class="warning" hidden></p>
+    </section>
+  </main>
+  <script src="/vendor/html5-qrcode.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

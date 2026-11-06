@@ -1,0 +1,9 @@
+# Copyright (c) 2026-2027 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# Example backend settings of the app stack. Copy to backend.hcl and run terraform init -backend-config=backend.hcl.
+bucket       = "my-event-terraform-state"
+key          = "app/terraform.tfstate"
+region       = "eu-central-1"
+encrypt      = true
+use_lockfile = true

@@ -1,0 +1,50 @@
+# Copyright (c) 2026-2027 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# opened files
+*~$*
+
+# envs and virtual envs and 
+.env
+!.env.example
+venv*
+.venv*
+
+# Random files and folders
+.DS_Store
+
+# Python files and folders
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.ruff_cache
+.export-venv
+
+# Logs
+**/*.log
+
+# Private keys
+**/*.pem
+
+# Terraform / Terragrunt
+.terraform/
+.terragrunt-cache/
+.terragrunt-tmp/
+*.tfstate
+*.tfstate.backup
+*.terraform.tfstate.lock.info
+*.tfplan
+override.tf
+override_*.tf
+backend.hcl
+*.tfvars
+!*.tfvars.example
+
+# Zips
+.build/
+dist/
+
+# Printed stickers, and the lock that keeps a second copy of the print laptop program from running
+printed_ids.txt
+print_laptop.lock

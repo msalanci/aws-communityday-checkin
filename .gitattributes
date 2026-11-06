@@ -1,0 +1,7 @@
+# Copyright (c) 2026-2027 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# Windows batch files need CRLF line endings, or cmd misreads their labels.
+*.bat text eol=crlf
+# Shell scripts need LF line endings, or bash fails on a Windows checkout.
+*.sh text eol=lf

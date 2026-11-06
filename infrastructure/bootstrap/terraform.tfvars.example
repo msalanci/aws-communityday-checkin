@@ -1,0 +1,5 @@
+# Copyright (c) 2026-2027 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# Example inputs of the bootstrap. Copy to terraform.tfvars and put your own values in.
+state_bucket_name = "my-event-terraform-state"

@@ -1,0 +1,6 @@
+# Copyright (c) 2026-2027 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# Example backend settings of the bootstrap: where its local state file lives. Copy to backend.hcl and run
+# terraform init -backend-config=backend.hcl. Keep the state outside the public repository.
+path = "/path/outside/the/repository/bootstrap/terraform.tfstate"

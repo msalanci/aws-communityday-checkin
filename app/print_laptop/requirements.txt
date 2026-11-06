@@ -1,0 +1,5 @@
+# Copyright (c) 2026-2027 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+boto3==1.43.125
+pywin32==312
