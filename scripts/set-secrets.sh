@@ -19,6 +19,7 @@ PIN_ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
 PIN_LENGTH=10
 MIN_PIN_LENGTH=6
 SECRET_FILE=""
+REGION=""
 PIN=""
 GENERATED=""
 
@@ -31,7 +32,7 @@ cleanup() {
   [[ -z "$SECRET_FILE" ]] || rm -f "$SECRET_FILE"
 }
 
-# Stores one SecureString parameter and tags it.
+# Stores one SecureString parameter in the app's region (REGION) and tags it.
 # Arguments:
 #   $1 - the parameter's full name
 #   $2 - the value
@@ -43,11 +44,11 @@ put_secret() {
   SECRET_FILE="$(mktemp)"
   chmod 600 "$SECRET_FILE"
   printf '%s' "$2" > "$SECRET_FILE"
-  aws ssm put-parameter --name "$1" --type SecureString --overwrite --description "$3, set by script" \
+  aws ssm put-parameter --region "$REGION" --name "$1" --type SecureString --overwrite --description "$3, set by script" \
     --value "file://$SECRET_FILE" --output text > /dev/null
   cleanup
   SECRET_FILE=""
-  aws ssm add-tags-to-resource --resource-type Parameter --resource-id "$1" \
+  aws ssm add-tags-to-resource --region "$REGION" --resource-type Parameter --resource-id "$1" \
     --tags "Key=project,Value=$4" "Key=terraform,Value=no"
 }
 
@@ -100,6 +101,7 @@ main() {
   load_outputs
   prefix="$(tf_output ssm_prefix)"
   tag="$(tf_output project_tag)"
+  REGION="$(tf_output aws_region)"
   if [[ "$1" == "--token" ]]; then
     read -r -s -p "pretix token of the Lambdas (it is not shown): " token
     printf '\n'

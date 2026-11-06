@@ -4,4 +4,4 @@
 # Example inputs of the app stack. Copy to terraform.tfvars and put your own domain in; the rest have defaults.
 aws_region  = "eu-central-1"
 name_prefix = "cd-registration"
-domain_name = "example.com"
+domain_name = "example.org"

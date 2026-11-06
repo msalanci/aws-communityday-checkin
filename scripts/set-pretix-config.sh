@@ -18,7 +18,7 @@ source "$(dirname "$0")/common.sh"
 # Returns:
 #   0 after SSM stored each given value; exits through fail on a wrong or missing value.
 main() {
-  local organizer="" list_id="" prefix
+  local organizer="" list_id="" prefix region
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --organizer)
@@ -39,12 +39,13 @@ main() {
   [[ -n "$organizer" || -n "$list_id" ]] || fail "usage: scripts/set-pretix-config.sh [--organizer <slug>] [--list <id>]"
   load_outputs
   prefix="$(tf_output ssm_prefix)"
+  region="$(tf_output aws_region)"
   if [[ -n "$organizer" ]]; then
-    aws ssm put-parameter --name "$prefix/pretix/organizer" --type String --overwrite --value "$organizer" --output text > /dev/null
+    aws ssm put-parameter --region "$region" --name "$prefix/pretix/organizer" --type String --overwrite --value "$organizer" --output text > /dev/null
     printf 'Set %s/pretix/organizer to %s\n' "$prefix" "$organizer"
   fi
   if [[ -n "$list_id" ]]; then
-    aws ssm put-parameter --name "$prefix/pretix/checkin-list-id" --type String --overwrite --value "$list_id" --output text > /dev/null
+    aws ssm put-parameter --region "$region" --name "$prefix/pretix/checkin-list-id" --type String --overwrite --value "$list_id" --output text > /dev/null
     printf 'Set %s/pretix/checkin-list-id to %s\n' "$prefix" "$list_id"
   fi
 }

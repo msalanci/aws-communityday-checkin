@@ -19,11 +19,12 @@ source "$(dirname "$0")/common.sh"
 # Returns:
 #   0 after SSM deleted them; names that did not exist are listed, not an error.
 main() {
-  local prefix result
+  local prefix region result
   load_outputs
   prefix="$(tf_output ssm_prefix)"
+  region="$(tf_output aws_region)"
   confirm "This deletes $prefix/pretix/token and $prefix/staff-pin." "delete"
-  result="$(aws ssm delete-parameters --names "$prefix/pretix/token" "$prefix/staff-pin" \
+  result="$(aws ssm delete-parameters --region "$region" --names "$prefix/pretix/token" "$prefix/staff-pin" \
     --query '[join(`, `, DeletedParameters), join(`, `, InvalidParameters)]' --output text)"
   printf 'Deleted, then did not exist (tab-separated): %s\n' "$result"
 }

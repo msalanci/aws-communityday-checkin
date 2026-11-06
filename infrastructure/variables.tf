@@ -42,7 +42,7 @@ variable "domain_name" {
 
   validation {
     condition     = can(regex("^([a-z0-9-]+\\.)+[a-z]{2,}$", var.domain_name))
-    error_message = "The domain name must look like example.com, in lowercase."
+    error_message = "The domain name must look like example.org, in lowercase."
   }
 }
 
