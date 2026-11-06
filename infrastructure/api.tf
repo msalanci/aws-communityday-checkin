@@ -91,3 +91,32 @@ resource "aws_lambda_permission" "api_invokes_web" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}${each.value}"
 }
+
+resource "aws_apigatewayv2_integration" "search_reprint" {
+  api_id                 = aws_apigatewayv2_api.checkin.id
+  description            = "search_reprint Lambda"
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.search_reprint.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "search_reprint" {
+  for_each = toset(["GET /api/search", "POST /api/reprint"])
+
+  api_id    = aws_apigatewayv2_api.checkin.id
+  route_key = each.value
+  target    = "integrations/${aws_apigatewayv2_integration.search_reprint.id}"
+}
+
+resource "aws_lambda_permission" "api_invokes_search_reprint" {
+  for_each = {
+    search  = "/*/GET/api/search"
+    reprint = "/*/POST/api/reprint"
+  }
+
+  statement_id  = "ApiInvokesSearchReprint-${each.key}"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.search_reprint.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}${each.value}"
+}

@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- Copyright (c) 2026-2027 Michal Salanci. SPDX-License-Identifier: MIT -->
 <!--
-  The scanner page that staff open on their phones: the PIN screen, the camera that reads ticket QR codes,
-  and the result card. Served by the web Lambda; its script calls the API on the same origin.
+  The scanner page that staff open on their phones: the PIN screen, the Scan tab with the camera that reads
+  ticket QR codes, the Search tab for finding an attendee by name, and the result card with Reprint and
+  Try again. Served by the web Lambda; its script calls the API on the same origin.
 -->
 <html lang="en">
 <head>
@@ -25,7 +26,10 @@
 
     <section id="app" class="screen" hidden>
       <nav class="top-bar">
-        <span class="tab active">Scan</span>
+        <div class="tabs">
+          <button id="tab-scan" type="button" class="tab active">Scan</button>
+          <button id="tab-search" type="button" class="tab">Search</button>
+        </div>
         <button id="change-pin" type="button" class="link">Change PIN</button>
       </nav>
 
@@ -35,8 +39,18 @@
         <button id="card-action" type="button" class="primary" hidden></button>
       </div>
 
-      <div id="reader" class="reader"></div>
-      <p id="camera-message" class="warning" hidden></p>
+      <section id="scan-view">
+        <div id="reader" class="reader"></div>
+        <p id="camera-message" class="warning" hidden></p>
+      </section>
+
+      <section id="search-view" hidden>
+        <label for="search">Name or order code</label>
+        <input id="search" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <p id="search-message" class="note" hidden></p>
+        <ul id="results" class="results"></ul>
+        <p id="search-more" class="note" hidden>More than 50 matches — type more letters</p>
+      </section>
     </section>
   </main>
   <script src="/vendor/html5-qrcode.min.js"></script>

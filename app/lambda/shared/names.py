@@ -53,6 +53,19 @@ def name_from(position: dict[str, Any] | None) -> tuple[str, str]:
     return first, last
 
 
+def fold(text: str) -> str:
+    """Make a text comparable without capitals and accents, so "novak" finds "Novák".
+
+    Args:
+        text: Any text.
+
+    Returns:
+        The text in Unicode NFKD form without combining marks, case-folded.
+    """
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(character for character in decomposed if not unicodedata.combining(character)).casefold()
+
+
 def full_name(first_name: str, last_name: str) -> str:
     """Join a first and a last name with one space.
 

@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from shared import config
+
 CHECKED_IN = "{name} — printing"
 ALREADY_CHECKED_IN = "Already checked in at {time}"
 ALREADY_CHECKED_IN_NO_TIME = "Already checked in"
@@ -88,6 +90,21 @@ def event_zone(name: str, utc_offset: str) -> tuple[datetime.tzinfo, str]:
         delta = datetime.timedelta(hours=int(match.group(2)), minutes=int(match.group(3)))
         return datetime.timezone(sign * delta), "offset"
     return datetime.timezone.utc, "utc"
+
+
+def zone_from_env(fields: dict[str, Any]) -> datetime.tzinfo:
+    """Find the event's time zone from the Lambda's environment.
+
+    Args:
+        fields: The log line's fields; gets time_zone when EVENT_TIMEZONE was not found.
+
+    Returns:
+        The zone of EVENT_TIMEZONE, else the fixed EVENT_UTC_OFFSET, else UTC.
+    """
+    zone, how = event_zone(config.env("EVENT_TIMEZONE", "Europe/Bratislava"), config.env("EVENT_UTC_OFFSET"))
+    if how != "zoneinfo":
+        fields["time_zone"] = how
+    return zone
 
 
 def latest_entry(position: dict[str, Any] | None, zone: datetime.tzinfo) -> datetime.datetime | None:

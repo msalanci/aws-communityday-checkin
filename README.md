@@ -408,22 +408,26 @@ On the event day, double-click **`start-print-laptop.bat`** in the `print-laptop
    - green card "Your Name — printing", and a sticker;
    - wait 10 seconds, then scan it again: amber card "Already checked in at …". The page ignores the same ticket for 10 seconds after its answer, and every ticket for 2 seconds;
    - scan any other QR code: red card "Not valid".
-3. **Optional, from the admin computer:** `scripts/scan-proof.sh <ticket secret>` runs five checks against the live API with one fresh test ticket: a wrong PIN, a scan, a repeated request (no second sticker), a second scan, and an unknown ticket. The ticket secret is the text inside its QR code; any QR reader app shows it. The script first asks you to type `yes`, then the staff PIN (not shown). It really checks the ticket in on the live check-in list, so use a test registration only. It prints each answer under a label that says what to expect ("expect …"); it does not judge pass or fail, so compare them yourself. Keep the print computer running, so that it shows ⏭ for check 3.
+3. **Search and Reprint:** register one more test attendee from a phone, open the **Search** tab and type part of the name: the attendee is listed without ✓. Tap the row: green card and a sticker, and the row now shows ✓. Tap the row again: green "Reprinting …" and a second sticker; pretix still shows one check-in. Search for that attendee's email: nothing is found.
+4. **Optional, from the admin computer:** `scripts/scan-proof.sh <ticket secret>` runs five checks against the live API with one fresh test ticket: a wrong PIN, a scan, a repeated request (no second sticker), a second scan, and an unknown ticket. The ticket secret is the text inside its QR code; any QR reader app shows it. The script first asks you to type `yes`, then the staff PIN (not shown). It really checks the ticket in on the live check-in list, so use a test registration only. It prints each answer under a label that says what to expect ("expect …"); it does not judge pass or fail, so compare them yourself. Keep the print computer running, so that it shows ⏭ for check 3.
 
 **What the cards mean**
 
 | Card on the phone | What it means |
 |---|---|
 | green "Your Name — printing" | Checked in. The sticker is in the print queue; it is not printed yet. |
-| amber "Already checked in at 09:14" (or without a time) | The ticket was checked in before. No sticker prints. |
-| amber "Checked in, but the sticker wasn't sent — tap Reprint" | Checked in, but its print request did not reach the queue: see below. |
+| green "Reprinting Your Name" | Reprint worked: another sticker is in the print queue. The ticket was not checked in again. |
+| amber "Already checked in at 09:14" (or without a time) | The ticket was checked in before. No sticker prints. Tap **Reprint** if the attendee needs another one. |
+| amber "Checked in, but the sticker wasn't sent — tap Reprint" | Checked in, but its print request did not reach the queue. Tap **Reprint**. |
+| amber "The sticker wasn't sent — tap Reprint again" | A reprint did not reach the queue. Tap **Reprint** again. |
+| amber "Not checked in yet — scan the ticket instead" | Reprint was asked for a ticket that is not checked in. Scan it, or tap it in the search. |
 | red "Not valid — please write your name on your badge" | Refused: pretix does not accept the ticket (for example cancelled, unknown or fake), or the QR code holds more than 200 characters. Also a ticket without a name: pretix has checked that one in, but there is no name to print. |
 | grey, with **Try again**: "No answer — try again", "Too many scans at once — try again", "pretix did not answer — try again", "pretix is busy — try again in a few seconds", "Something was wrong with the request — try again" or "Something went wrong — try again" | A technical failure. Tap **Try again**: it sends the same request again, with the same nonce, so it never checks a ticket in or prints a sticker twice. |
 | grey "The system can't use pretix — call the organizer" | A setting is missing or wrong (redo 3.4 and 3.5), or pretix refused the token, the organizer or the check-in list. |
 
 Green, amber and red each have their own beeps and vibration; grey has none. iPhones do not vibrate from web pages.
 
-**"tap Reprint":** the page has no Reprint button yet. The ticket is checked in. Print its sticker from the admin computer with `scripts/send-test-print-request.sh "First Last"`, or write the name by hand. Scanning the ticket again shows "Already checked in" and prints nothing.
+**Search and Reprint.** The **Search** tab finds an attendee whose QR code cannot be scanned: type at least 3 letters of the name or the order code (not the email). Accents and capitals do not matter, so `novak` finds "Novák". Each row shows the name, the order code and "✓ 09:14" once checked in. Tap a row without ✓ to check that attendee in (a sticker prints); tap a row with ✓ to print another sticker. **Reprint** on an amber card does the same for the ticket just scanned. A reprint never checks a ticket in again, and tapping it once prints one sticker. The camera rests while the Search tab is open.
 
 **After the event**, on the admin computer, in this order:
 1. `scripts/delete-secrets.sh` (type `delete`): removes the pretix token and the staff PIN; within 5 minutes the page stops working. Run it first: it reads Terraform's outputs, which `destroy` removes.

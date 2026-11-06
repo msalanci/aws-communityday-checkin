@@ -3,24 +3,32 @@
 
 // @ts-check
 /**
- * The scanner page's script: the staff PIN, reading ticket QR codes with html5-qrcode, and the result card.
+ * The scanner page's script: the staff PIN, reading ticket QR codes with html5-qrcode, searching attendees
+ * by name, and the result card with Reprint and Try again.
  *
- * Loaded by index.html after vendor/html5-qrcode.min.js. It calls POST /api/scan on its own origin with the
- * scanned text, a new nonce and the X-Staff-Pin header, and shows the answer's message on a coloured card.
- * The PIN is kept in localStorage under cdr.staffPin, or in memory when the browser refuses storage.
+ * Loaded by index.html after vendor/html5-qrcode.min.js. It calls POST /api/scan, GET /api/search and
+ * POST /api/reprint on its own origin with the X-Staff-Pin header, and shows each answer's message on a
+ * coloured card. The PIN is kept in localStorage under cdr.staffPin, or in memory when the browser refuses
+ * storage.
  */
 
 const PIN_KEY = "cdr.staffPin";
 const ANSWER_TIMEOUT_MS = 12000;
 const RESUME_AFTER_MS = 2000;
 const SAME_TICKET_MS = 10000;
+const SEARCH_DELAY_MS = 300;
+const MIN_SEARCH = 3;
 const TEXTS = {
   checking: "Checking…",
+  searching: "Searching…",
+  noMatches: "No matches",
+  noName: "(no name)",
   noAnswer: "No answer — try again",
   tooMany: "Too many scans at once — try again",
   wentWrong: "Something went wrong — try again",
   wrongPin: "Wrong PIN",
   tryAgain: "Try again",
+  reprint: "Reprint",
   cameraBlocked: "The camera is blocked — allow it for this site in the browser's settings, then reload",
   cameraMissing: "No camera found — open this page in Safari or Chrome on the phone",
 };
@@ -32,6 +40,7 @@ const COLOURS = {
   not_checked_in: "amber",
   invalid: "red",
 };
+const REPRINTABLE = ["already_checked_in", "print_failed"];
 const FEEDBACK = {
   green: { vibrate: [120], beeps: [[880, 0.15]] },
   amber: { vibrate: [120, 90, 120], beeps: [[660, 0.12], [660, 0.12]] },
@@ -39,7 +48,9 @@ const FEEDBACK = {
 };
 
 /** @typedef {{ path: string, body: { secret: string, nonce: string } }} ApiRequest */
-/** @typedef {{ result?: unknown, message?: unknown, attendee?: { first_name?: unknown, last_name?: unknown } }} ApiBody */
+/** @typedef {{ result?: unknown, message?: unknown, attendee?: { first_name?: unknown, last_name?: unknown }, results?: unknown, more?: unknown }} ApiBody */
+/** @typedef {{ status: number, body: ApiBody | null }} ApiAnswer */
+/** @typedef {{ secret: string, first_name: string, last_name: string, order_code: string, checked_in_at: string | null }} SearchResult */
 
 let memoryPin = "";
 /** @type {AudioContext | null} */
@@ -51,6 +62,11 @@ let lastTicket = "";
 let lastTicketAt = 0;
 /** @type {ApiRequest | null} */
 let lastRequest = null;
+let cardSecret = "";
+let cardAction = "";
+let activeTab = "scan";
+let searchTimer = 0;
+let searchSequence = 0;
 
 /**
  * Find an element of the page by its ID.
@@ -125,14 +141,37 @@ function showPinScreen(warning) {
 }
 
 /**
- * Show the scan screen and start the camera.
+ * Show the app on its Scan tab, which starts the camera.
  * No parameters.
  * @returns {void} Nothing.
  */
 function showApp() {
   element("pin-screen").hidden = true;
   element("app").hidden = false;
-  startCamera();
+  showTab("scan");
+}
+
+/**
+ * Switch between the Scan and the Search tab; the camera reads only while the Scan tab is shown.
+ * @param {string} tab - "scan" or "search".
+ * @returns {void} Nothing.
+ */
+function showTab(tab) {
+  activeTab = tab;
+  element("scan-view").hidden = tab !== "scan";
+  element("search-view").hidden = tab !== "search";
+  element("tab-scan").classList.toggle("active", tab === "scan");
+  element("tab-search").classList.toggle("active", tab === "search");
+  if (tab === "search") {
+    setPaused(true);
+    element("search").focus();
+    return;
+  }
+  if (!scanner) {
+    startCamera();
+  } else if (!busy) {
+    setPaused(false);
+  }
 }
 
 /**
@@ -270,23 +309,35 @@ function setPaused(pause) {
 }
 
 /**
- * Handle a QR code the camera read: ignore it while busy or when it is the ticket just shown, else scan it.
+ * Handle a QR code the camera read: ignore it while busy, on the Search tab, or when it is the ticket
+ * just shown; else scan it.
  * @param {string} text - The QR code's text, the ticket secret.
  * @returns {void} Nothing.
  */
 function onRead(text) {
-  if (busy) {
+  if (busy || activeTab !== "scan") {
     return;
   }
   if (text === lastTicket && Date.now() - lastTicketAt < SAME_TICKET_MS) {
     return;
   }
-  ask({ path: "/api/scan", body: { secret: text, nonce: crypto.randomUUID() } });
+  ask(ticketRequest("/api/scan", text));
 }
 
 /**
- * Send a request with the camera paused, show its card, and resume the camera 2 s after the answer.
- * @param {ApiRequest} request - The request; Try again sends it unchanged, with the same nonce.
+ * Build a scan or reprint request with a new nonce.
+ * @param {string} path - "/api/scan" or "/api/reprint".
+ * @param {string} secret - The ticket secret.
+ * @returns {ApiRequest} The request; Try again sends it unchanged, so a retry never acts twice.
+ */
+function ticketRequest(path, secret) {
+  return { path, body: { secret, nonce: crypto.randomUUID() } };
+}
+
+/**
+ * Send a scan or reprint request with the camera paused, show its card, and let the camera read again
+ * 2 s after the answer (on the Scan tab only).
+ * @param {ApiRequest} request - The request.
  * @returns {Promise<void>} Resolves when the card shows the answer.
  */
 async function ask(request) {
@@ -294,7 +345,7 @@ async function ask(request) {
   lastRequest = request;
   setPaused(true);
   showCard("checking", "", TEXTS.checking, "");
-  const answer = await callApi(request);
+  const answer = await callApi("POST", request.path, request.body);
   if (answer.status === 401) {
     busy = false;
     forgetPin();
@@ -303,37 +354,49 @@ async function ask(request) {
   }
   lastTicket = request.body.secret;
   lastTicketAt = Date.now();
-  render(answer);
+  render(answer, request);
+  if (activeTab === "search") {
+    refreshSearch();
+  }
   window.setTimeout(() => {
     busy = false;
-    setPaused(false);
+    if (activeTab === "scan") {
+      setPaused(false);
+    }
   }, RESUME_AFTER_MS);
 }
 
 /**
  * Call the API and read its answer, giving up after 12 s.
- * @param {ApiRequest} request - The path and JSON body.
- * @returns {Promise<{ status: number, body: ApiBody | null }>} The HTTP status (0 for no answer) and the JSON body, if any.
+ * @param {string} method - "GET" or "POST".
+ * @param {string} path - The path, with its query for a GET.
+ * @param {object} [body] - The JSON body of a POST.
+ * @returns {Promise<ApiAnswer>} The HTTP status (0 for no answer) and the JSON body, if any.
  */
-async function callApi(request) {
+async function callApi(method, path, body) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), ANSWER_TIMEOUT_MS);
+  /** @type {Record<string, string>} */
+  const headers = { "X-Staff-Pin": readPin() };
+  if (body) {
+    headers["Content-Type"] = "application/json";
+  }
   try {
-    const response = await fetch(request.path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Staff-Pin": readPin() },
-      body: JSON.stringify(request.body),
+    const response = await fetch(path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
       cache: "no-store",
       credentials: "omit",
     });
-    let body = null;
+    let parsed = null;
     try {
-      body = await response.json();
+      parsed = await response.json();
     } catch {
-      body = null;
+      parsed = null;
     }
-    return { status: response.status, body };
+    return { status: response.status, body: parsed };
   } catch {
     return { status: 0, body: null };
   } finally {
@@ -342,26 +405,45 @@ async function callApi(request) {
 }
 
 /**
- * Turn an answer into its card: the API's own message only when the body has a result.
- * @param {{ status: number, body: ApiBody | null }} answer - The HTTP status and JSON body.
+ * The page's own text for an answer without a result: no answer, the throttle, or anything else.
+ * @param {ApiAnswer} answer - The HTTP status and JSON body.
+ * @returns {string} The text to show.
+ */
+function failureText(answer) {
+  if (answer.status === 0) {
+    return TEXTS.noAnswer;
+  }
+  if (answer.status === 429) {
+    return TEXTS.tooMany;
+  }
+  return TEXTS.wentWrong;
+}
+
+/**
+ * Turn an answer into its card: the API's own message only when the body has a result. Amber cards for a
+ * ticket that is checked in get Reprint; grey cards get Try again.
+ * @param {ApiAnswer} answer - The HTTP status and JSON body.
+ * @param {ApiRequest} request - The request it answers; Reprint uses its ticket secret.
  * @returns {void} Nothing.
  */
-function render(answer) {
+function render(answer, request) {
   const body = answer.body;
   if (body && typeof body.result === "string") {
     const colour = COLOURS[/** @type {keyof typeof COLOURS} */ (body.result)] || "grey";
     const message = typeof body.message === "string" ? body.message : TEXTS.wentWrong;
-    showCard(colour, attendeeName(body), message, colour === "grey" ? TEXTS.tryAgain : "");
+    let action = "";
+    if (colour === "grey") {
+      action = "retry";
+    } else if (REPRINTABLE.includes(body.result)) {
+      action = "reprint";
+    }
+    cardSecret = action === "reprint" ? request.body.secret : "";
+    showCard(colour, attendeeName(body), message, action);
     feedback(colour);
     return;
   }
-  let text = TEXTS.wentWrong;
-  if (answer.status === 0) {
-    text = TEXTS.noAnswer;
-  } else if (answer.status === 429) {
-    text = TEXTS.tooMany;
-  }
-  showCard("grey", "", text, TEXTS.tryAgain);
+  cardSecret = "";
+  showCard("grey", "", failureText(answer), "retry");
 }
 
 /**
@@ -381,7 +463,7 @@ function attendeeName(body) {
  * @param {string} colour - "checking", "green", "amber", "red" or "grey".
  * @param {string} name - The attendee's name, shown large; empty hides it.
  * @param {string} message - The message under it.
- * @param {string} action - The button's label, such as "Try again"; empty hides the button.
+ * @param {string} action - "retry" for Try again, "reprint" for Reprint, empty for no button.
  * @returns {void} Nothing; names go in as text, never as HTML.
  */
 function showCard(colour, name, message, action) {
@@ -392,24 +474,145 @@ function showCard(colour, name, message, action) {
   nameLine.textContent = name;
   nameLine.hidden = !name;
   element("card-message").textContent = message;
+  cardAction = action;
   const button = /** @type {HTMLButtonElement} */ (element("card-action"));
-  button.textContent = action;
+  button.textContent = action === "reprint" ? TEXTS.reprint : TEXTS.tryAgain;
   button.hidden = !action;
   button.disabled = false;
 }
 
 /**
- * Resend the last request with the same body and nonce, from the card's Try again button.
+ * Do what the card's button says: resend the same request (Try again), or reprint the card's ticket.
  * No parameters.
  * @returns {void} Nothing.
  */
-function tryAgain() {
-  if (!lastRequest || busy) {
+function onCardAction() {
+  if (busy) {
     return;
   }
   unlockAudio();
   /** @type {HTMLButtonElement} */ (element("card-action")).disabled = true;
-  ask(lastRequest);
+  if (cardAction === "retry" && lastRequest) {
+    ask(lastRequest);
+  } else if (cardAction === "reprint" && cardSecret) {
+    ask(ticketRequest("/api/reprint", cardSecret));
+  }
+}
+
+/**
+ * Search 300 ms after the last keystroke once the text has 3 characters; shorter text clears the list.
+ * No parameters.
+ * @returns {void} Nothing.
+ */
+function onSearchInput() {
+  window.clearTimeout(searchTimer);
+  const text = /** @type {HTMLInputElement} */ (element("search")).value.trim();
+  if (text.length < MIN_SEARCH) {
+    searchSequence += 1;
+    element("results").replaceChildren();
+    showSearchMessage("");
+    element("search-more").hidden = true;
+    return;
+  }
+  searchTimer = window.setTimeout(() => runSearch(text), SEARCH_DELAY_MS);
+}
+
+/**
+ * Run the search again with the field's text, so a check-in shows its ✓ at once.
+ * No parameters.
+ * @returns {void} Nothing.
+ */
+function refreshSearch() {
+  const text = /** @type {HTMLInputElement} */ (element("search")).value.trim();
+  if (text.length >= MIN_SEARCH) {
+    runSearch(text);
+  }
+}
+
+/**
+ * Ask the API for attendees matching a text and list them; an answer older than the latest search is ignored.
+ * @param {string} text - The search text, at least 3 characters.
+ * @returns {Promise<void>} Resolves when the list or a message is shown.
+ */
+async function runSearch(text) {
+  searchSequence += 1;
+  const sequence = searchSequence;
+  showSearchMessage(TEXTS.searching);
+  const answer = await callApi("GET", `/api/search?q=${encodeURIComponent(text)}`);
+  if (sequence !== searchSequence) {
+    return;
+  }
+  if (answer.status === 401) {
+    forgetPin();
+    showPinScreen(TEXTS.wrongPin);
+    return;
+  }
+  const body = answer.body;
+  if (body && body.result === "ok" && Array.isArray(body.results)) {
+    renderResults(body.results.filter(isSearchResult), body.more === true);
+    return;
+  }
+  element("results").replaceChildren();
+  element("search-more").hidden = true;
+  showSearchMessage(body && typeof body.result === "string" && typeof body.message === "string" ? body.message : failureText(answer));
+}
+
+/**
+ * Tell whether a value from the API is a usable search result.
+ * @param {unknown} value - One item of the answer's results.
+ * @returns {value is SearchResult} True when it has a secret and text fields.
+ */
+function isSearchResult(value) {
+  const item = /** @type {any} */ (value);
+  return Boolean(item) && typeof item.secret === "string" && item.secret !== "" && typeof item.order_code === "string";
+}
+
+/**
+ * List the search results as rows to tap: a row not checked in checks the attendee in, a row checked in
+ * reprints their sticker.
+ * @param {SearchResult[]} results - The results.
+ * @param {boolean} more - Whether pretix had more than 50 matches.
+ * @returns {void} Nothing; names go in as text, never as HTML.
+ */
+function renderResults(results, more) {
+  const rows = results.map((result) => {
+    const name = [result.first_name, result.last_name].filter((part) => typeof part === "string" && part.trim()).join(" ");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "result";
+    const nameLine = document.createElement("span");
+    nameLine.className = "result-name";
+    nameLine.textContent = name || TEXTS.noName;
+    const detail = document.createElement("span");
+    detail.className = "result-detail";
+    const checkedIn = typeof result.checked_in_at === "string" ? `  ✓ ${result.checked_in_at.slice(11, 16)}` : "";
+    detail.textContent = `${result.order_code}${checkedIn}`;
+    button.append(nameLine, detail);
+    button.addEventListener("click", () => {
+      if (busy) {
+        return;
+      }
+      unlockAudio();
+      ask(ticketRequest(checkedIn ? "/api/reprint" : "/api/scan", result.secret));
+    });
+    const row = document.createElement("li");
+    row.append(button);
+    return row;
+  });
+  element("results").replaceChildren(...rows);
+  showSearchMessage(rows.length ? "" : TEXTS.noMatches);
+  element("search-more").hidden = !more;
+}
+
+/**
+ * Show a line under the search field.
+ * @param {string} text - The text; empty hides the line.
+ * @returns {void} Nothing.
+ */
+function showSearchMessage(text) {
+  const line = element("search-message");
+  line.textContent = text;
+  line.hidden = !text;
 }
 
 /**
@@ -427,9 +630,13 @@ function init() {
   element("change-pin").addEventListener("click", () => {
     forgetPin();
     element("card").hidden = true;
+    element("results").replaceChildren();
     showPinScreen("");
   });
-  element("card-action").addEventListener("click", tryAgain);
+  element("card-action").addEventListener("click", onCardAction);
+  element("tab-scan").addEventListener("click", () => showTab("scan"));
+  element("tab-search").addEventListener("click", () => showTab("search"));
+  element("search").addEventListener("input", onSearchInput);
   document.addEventListener("pointerdown", unlockAudio, { once: true });
   if (readPin()) {
     showApp();

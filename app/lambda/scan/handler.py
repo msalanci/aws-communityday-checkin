@@ -9,18 +9,13 @@ request on the print queue. Environment: SSM_PREFIX, QUEUE_URL, PRETIX_BASE_URL,
 EVENT_UTC_OFFSET. Every outcome about a ticket is HTTP 200 with "result" and "message".
 """
 
-import base64
-import json
-import re
 import time
 from typing import Any
 
-from shared import auth, config, logs, names, outcomes, pretix, print_queue
+from shared import auth, config, logs, names, outcomes, pretix, print_queue, validation
 from shared.responses import attendee, respond
 
 ROUTE = "POST /api/scan"
-MAX_SECRET = 200
-NONCE_PATTERN = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 
 def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
@@ -44,31 +39,6 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     return response
 
 
-def read_body(event: dict[str, Any]) -> tuple[str, str] | None:
-    """Read and check the request body.
-
-    Args:
-        event: API Gateway's event.
-
-    Returns:
-        (secret, nonce), or None when the body is not JSON, the secret is missing, empty or not
-        text, or the nonce is not a UUID.
-    """
-    raw = event.get("body") or ""
-    try:
-        if event.get("isBase64Encoded"):
-            raw = base64.b64decode(raw).decode("utf-8")
-        data = json.loads(raw)
-    except (ValueError, UnicodeDecodeError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    secret, nonce = data.get("secret"), data.get("nonce")
-    if not isinstance(secret, str) or not secret or not isinstance(nonce, str) or not NONCE_PATTERN.fullmatch(nonce):
-        return None
-    return secret, nonce
-
-
 def scan(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Do the scan's work.
 
@@ -79,18 +49,14 @@ def scan(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, 
     Returns:
         (result, response).
     """
-    try:
-        settings = config.load()
-    except config.ConfigMissing as error:
-        fields["reason"] = "ssm_unreadable" if str(error).startswith("SSM could not") else "config_missing"
-        return "unavailable", respond(503, "unavailable", outcomes.UNAVAILABLE["access"])
-    if not auth.pin_ok(event.get("headers"), settings.staff_pin):
-        return "unauthorized", respond(401, "unauthorized", outcomes.UNAUTHORIZED)
-    request = read_body(event)
+    settings, refusal = auth.admit(event, fields)
+    if refusal is not None:
+        return refusal
+    request = validation.read_ticket_body(event)
     if request is None:
         return "bad_request", respond(400, "bad_request", outcomes.BAD_REQUEST)
     secret, nonce = request
-    if len(secret) > MAX_SECRET:
+    if len(secret) > validation.MAX_SECRET:
         fields["reason"] = "secret_too_long"
         return "invalid", respond(200, "invalid", outcomes.INVALID)
     try:
@@ -133,10 +99,7 @@ def already_checked_in(position: dict[str, Any], person: dict[str, str], fields:
     Returns:
         (result, response).
     """
-    zone, how = outcomes.event_zone(config.env("EVENT_TIMEZONE", "Europe/Bratislava"), config.env("EVENT_UTC_OFFSET"))
-    if how != "zoneinfo":
-        fields["time_zone"] = how
-    moment = outcomes.latest_entry(position, zone)
+    moment = outcomes.latest_entry(position, outcomes.zone_from_env(fields))
     if moment is None:
         return "already_checked_in", respond(
             200, "already_checked_in", outcomes.ALREADY_CHECKED_IN_NO_TIME, attendee=person, checked_in_at=None

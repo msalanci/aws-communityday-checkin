@@ -1,10 +1,11 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-"""The pretix check-in API, called with urllib.request: redeem a ticket on the check-in list.
+"""The pretix check-in API, called with urllib.request: redeem a ticket, and search the check-in list.
 
-pretix answers about a ticket in the JSON's "status", not in the HTTP code (201 for ok, 404 for
-an unknown ticket, 400 for most refusals), so any response whose JSON has "status" is an answer.
+pretix answers a redeem in the JSON's "status", not in the HTTP code (201 for ok, 404 for an
+unknown ticket, 400 for most refusals), so any response whose JSON has "status" is an answer; a
+search answers 200 with a page of "results".
 Everything else is pretix being unavailable, in one of three kinds the phone explains
 differently: no_answer, busy, access. The Lambdas never retry pretix themselves, and never follow
 a redirect, which would carry the token to another address.
@@ -94,6 +95,15 @@ class PretixAnswer:
     body: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class SearchPage:
+    """One page of pretix's search: the positions found, and whether pretix has more."""
+
+    http: int
+    results: list[dict[str, Any]]
+    more: bool
+
+
 def redeem(
     config: Config,
     base_url: str,
@@ -130,7 +140,51 @@ def redeem(
         method="POST",
         headers=_headers(config, has_body=True),
     )
-    return _call(request, opener or open_without_redirects)
+    status, data = _send(request, opener or open_without_redirects)
+    if isinstance(data, dict) and "status" in data:
+        return PretixAnswer(status, data)
+    raise _unavailable(status, data)
+
+
+def search(
+    config: Config,
+    base_url: str,
+    text: str,
+    page_size: int = 50,
+    secret: str | None = None,
+    opener: Callable[..., Any] | None = None,
+) -> SearchPage:
+    """Search the check-in list.
+
+    pretix matches attendee names, order codes, order emails and the start of the secret; the
+    caller filters further. Only paid orders are returned.
+
+    Args:
+        config: The organizer slug, list ID and token.
+        base_url: pretix's address.
+        text: What to search for.
+        page_size: The most results to return.
+        secret: When given, only the position with exactly this secret (the reprint lookup).
+        opener: Sends the request; None opens it without following redirects.
+
+    Returns:
+        The first page of results.
+
+    Raises:
+        PretixUnavailable: pretix did not answer with a page of results.
+    """
+    query = {"list": config.list_id, "search": text, "page_size": page_size}
+    if secret is not None:
+        query["secret"] = secret
+    request = urllib.request.Request(
+        f"{_url(config, base_url, 'search/')}?{urllib.parse.urlencode(query)}",
+        method="GET",
+        headers=_headers(config, has_body=False),
+    )
+    status, data = _send(request, opener or open_without_redirects)
+    if 200 <= status < 300 and isinstance(data, dict) and isinstance(data.get("results"), list):
+        return SearchPage(status, data["results"], data.get("next") is not None)
+    raise _unavailable(status, data)
 
 
 def _url(config: Config, base_url: str, endpoint: str) -> str:
@@ -164,20 +218,18 @@ def _headers(config: Config, has_body: bool) -> dict[str, str]:
     return headers
 
 
-def _call(request: urllib.request.Request, opener: Callable[..., Any]) -> PretixAnswer:
-    """Send a request and sort pretix's response into an answer or a kind of unavailability.
+def _send(request: urllib.request.Request, opener: Callable[..., Any]) -> tuple[int, Any]:
+    """Send a request and read pretix's response.
 
     Args:
         request: The prepared request.
         opener: Sends it.
 
     Returns:
-        The answer, when the JSON body has "status".
+        (HTTP status, the decoded JSON body, or None when it is not JSON).
 
     Raises:
-        PretixUnavailable: Timeout, connection error, a broken or cut-off response, a redirect, 5xx,
-            a body that is not JSON, a 4xx without "status" (wrong token, organizer or list), 429,
-            or a 2xx without "status".
+        PretixUnavailable: Timeout, connection error, a broken or cut-off response, or a redirect.
     """
     try:
         with opener(request, timeout=TIMEOUT_SECONDS) as response:
@@ -201,12 +253,24 @@ def _call(request: urllib.request.Request, opener: Callable[..., Any]) -> Pretix
         data = json.loads(raw)
     except (ValueError, UnicodeDecodeError):
         data = None
-    if isinstance(data, dict) and "status" in data:
-        return PretixAnswer(status, data)
+    return status, data
+
+
+def _unavailable(status: int, data: Any) -> PretixUnavailable:
+    """Sort a response that is not the expected answer into a kind of unavailability.
+
+    Args:
+        status: The HTTP status.
+        data: The decoded JSON body, or None.
+
+    Returns:
+        busy for 429; access for any other 4xx (wrong token, organizer or list); no_answer for 5xx,
+        a body that is not JSON, or a 2xx without the expected content.
+    """
     if status == 429:
-        raise PretixUnavailable("busy", "http_429", status)
+        return PretixUnavailable("busy", "http_429", status)
     if 400 <= status < 500:
-        raise PretixUnavailable("access", f"http_{status}", status)
+        return PretixUnavailable("access", f"http_{status}", status)
     if status >= 500:
-        raise PretixUnavailable("no_answer", f"http_{status}", status)
-    raise PretixUnavailable("no_answer", "no_status" if data is not None else "not_json", status)
+        return PretixUnavailable("no_answer", f"http_{status}", status)
+    return PretixUnavailable("no_answer", "no_status" if data is not None else "not_json", status)
