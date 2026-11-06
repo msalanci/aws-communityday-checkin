@@ -18,12 +18,12 @@ from shared.responses import attendee, respond
 ROUTE = "POST /api/scan"
 
 
-def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle one scan.
 
     Args:
         event: API Gateway's payload 2.0 event.
-        _context: The Lambda context.
+        context: The Lambda context, for the time left.
 
     Returns:
         The API Gateway response; an unexpected error is a 500 with the generic message.
@@ -31,7 +31,7 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     started = time.monotonic()
     fields: dict[str, Any] = {}
     try:
-        result, response = scan(event, fields)
+        result, response = scan(event, fields, context)
     except Exception as error:
         fields["error"] = logs.where(error)
         result, response = "error", respond(500, "error", outcomes.ERROR)
@@ -39,12 +39,15 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     return response
 
 
-def scan(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def scan(event: dict[str, Any], fields: dict[str, Any], context: Any = None) -> tuple[str, dict[str, Any]]:
     """Do the scan's work.
 
     Args:
         event: API Gateway's event.
         fields: Filled with the log line's fields.
+        context: The Lambda context; with too little time left, pretix is not called (the phone
+            gets "pretix did not answer — try again") or the print request is not sent (the phone
+            gets "tap Reprint"), instead of being cut off by the timeout.
 
     Returns:
         (result, response).
@@ -59,6 +62,9 @@ def scan(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, 
     if len(secret) > validation.MAX_SECRET:
         fields["reason"] = "secret_too_long"
         return "invalid", respond(200, "invalid", outcomes.INVALID)
+    if not config.time_left_ok(context, config.PRETIX_BUDGET_MS):
+        fields["reason"] = "no_time"
+        return "unavailable", respond(503, "unavailable", outcomes.UNAVAILABLE["no_answer"])
     try:
         answer = pretix.redeem(settings, config.env("PRETIX_BASE_URL", "https://pretix.eu"), secret, nonce)
     except pretix.PretixUnavailable as error:
@@ -81,6 +87,9 @@ def scan(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, 
         return already_checked_in(position, person, fields)
     request_id = print_queue.print_id(nonce, secret)
     fields["print_id"] = request_id
+    if not config.time_left_ok(context, config.SQS_BUDGET_MS):
+        fields["reason"] = "no_time"
+        return "print_failed", respond(200, "print_failed", outcomes.SCAN_PRINT_FAILED, attendee=person)
     if not print_queue.send(config.aws_client("sqs"), config.env("QUEUE_URL"), request_id, first_name, last_name):
         fields["reason"] = "sqs_failed"
         return "print_failed", respond(200, "print_failed", outcomes.SCAN_PRINT_FAILED, attendee=person)

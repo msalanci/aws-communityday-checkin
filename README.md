@@ -266,7 +266,7 @@ scripts/set-secrets.sh --token     # paste the token from 2.4; it is not shown
 scripts/set-secrets.sh --pin       # type the PIN you want, twice, or press Enter for a random one
 ```
 
-The PIN: at least 6 characters, better 8 or more, and only the letters A–Z and a–z and the digits 0–9 (no accents, spaces or symbols). Enter alone makes a random PIN of 10 characters and shows it once: write it down.
+The PIN: at least 8 characters, and only the letters A–Z and a–z and the digits 0–9 (no accents, spaces or symbols). Enter alone makes a random PIN of 10 characters and shows it once: write it down.
 
 Both are stored encrypted in SSM, never in Terraform's state, and not kept in any file. A new PIN, or a new token, works within 5 minutes.
 

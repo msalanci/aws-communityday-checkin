@@ -116,11 +116,15 @@ def latest_entry(position: dict[str, Any] | None, zone: datetime.tzinfo) -> date
         zone: The event's time zone.
 
     Returns:
-        The latest entry check-in's time in the event's time zone, or None when there is none.
+        The latest check-in's time with type "entry", in the event's time zone, or None when there
+        is none or "checkins" is not a list.
     """
+    checkins = (position or {}).get("checkins")
+    if not isinstance(checkins, list):
+        return None
     times = []
-    for checkin in (position or {}).get("checkins") or []:
-        if not isinstance(checkin, dict) or checkin.get("type", "entry") != "entry":
+    for checkin in checkins:
+        if not isinstance(checkin, dict) or checkin.get("type") != "entry":
             continue
         try:
             moment = datetime.datetime.fromisoformat(str(checkin.get("datetime")))

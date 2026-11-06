@@ -18,12 +18,12 @@ from shared.responses import attendee, respond
 REPRINT_LOOKUP_SIZE = 2
 
 
-def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle one search or reprint request.
 
     Args:
         event: API Gateway's payload 2.0 event; routeKey picks the work.
-        _context: The Lambda context.
+        context: The Lambda context, for the time left.
 
     Returns:
         The API Gateway response; an unexpected error is a 500 with the generic message.
@@ -31,12 +31,12 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     started = time.monotonic()
     route = str(event.get("routeKey") or "")
     fields: dict[str, Any] = {}
-    work: Callable[[dict[str, Any], dict[str, Any]], tuple[str, dict[str, Any]]] | None = ROUTES.get(route)
+    work: Callable[[dict[str, Any], dict[str, Any], Any], tuple[str, dict[str, Any]]] | None = ROUTES.get(route)
     try:
         if work is None:
             result, response = "bad_request", respond(400, "bad_request", outcomes.BAD_REQUEST)
         else:
-            result, response = work(event, fields)
+            result, response = work(event, fields, context)
     except Exception as error:
         fields["error"] = logs.where(error)
         result, response = "error", respond(500, "error", outcomes.ERROR)
@@ -44,7 +44,7 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     return response
 
 
-def search(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def search(event: dict[str, Any], fields: dict[str, Any], context: Any = None) -> tuple[str, dict[str, Any]]:
     """Search the check-in list and keep only results whose name or order code contains the text.
 
     pretix also matches order emails and the start of the secret; those results are dropped, so
@@ -53,6 +53,7 @@ def search(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str
     Args:
         event: API Gateway's event, with q in the query string.
         fields: Filled with the log line's fields; the text itself is never logged, only its length.
+        context: The Lambda context; with too little time left, pretix is not called.
 
     Returns:
         (result, response): "ok" with up to 50 results and whether pretix had more.
@@ -64,6 +65,9 @@ def search(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str
     if text is None:
         return "bad_request", respond(400, "bad_request", outcomes.BAD_REQUEST)
     fields["q_length"] = len(text)
+    if not config.time_left_ok(context, config.PRETIX_BUDGET_MS):
+        fields["reason"] = "no_time"
+        return "unavailable", respond(503, "unavailable", outcomes.UNAVAILABLE["no_answer"])
     try:
         page = pretix.search(settings, config.env("PRETIX_BASE_URL", "https://pretix.eu"), text)
     except pretix.PretixUnavailable as error:
@@ -93,12 +97,14 @@ def search(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str
     return "ok", respond(200, "ok", "", results=results, more=page.more)
 
 
-def reprint(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def reprint(event: dict[str, Any], fields: dict[str, Any], context: Any = None) -> tuple[str, dict[str, Any]]:
     """Print another sticker for a ticket that is checked in; never check it in.
 
     Args:
         event: API Gateway's event, with the ticket's secret and a new nonce in the body.
         fields: Filled with the log line's fields.
+        context: The Lambda context; with too little time left, pretix is not called or the print
+            request is not sent.
 
     Returns:
         (result, response): reprinting, not_checked_in, invalid or print_failed.
@@ -113,6 +119,9 @@ def reprint(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[st
     if len(secret) > validation.MAX_SECRET:
         fields["reason"] = "secret_too_long"
         return "invalid", respond(200, "invalid", outcomes.INVALID)
+    if not config.time_left_ok(context, config.PRETIX_BUDGET_MS):
+        fields["reason"] = "no_time"
+        return "unavailable", respond(503, "unavailable", outcomes.UNAVAILABLE["no_answer"])
     try:
         page = pretix.search(
             settings, config.env("PRETIX_BASE_URL", "https://pretix.eu"), secret, page_size=REPRINT_LOOKUP_SIZE, secret=secret
@@ -137,6 +146,9 @@ def reprint(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[st
         return "not_checked_in", respond(200, "not_checked_in", outcomes.NOT_CHECKED_IN, attendee=person)
     request_id = print_queue.print_id(nonce, secret)
     fields["print_id"] = request_id
+    if not config.time_left_ok(context, config.SQS_BUDGET_MS):
+        fields["reason"] = "no_time"
+        return "print_failed", respond(200, "print_failed", outcomes.REPRINT_FAILED, attendee=person)
     if not print_queue.send(config.aws_client("sqs"), config.env("QUEUE_URL"), request_id, first_name, last_name):
         fields["reason"] = "sqs_failed"
         return "print_failed", respond(200, "print_failed", outcomes.REPRINT_FAILED, attendee=person)
@@ -144,7 +156,7 @@ def reprint(event: dict[str, Any], fields: dict[str, Any]) -> tuple[str, dict[st
     return "reprinting", respond(200, "reprinting", outcomes.REPRINTING.format(name=name), attendee=person)
 
 
-ROUTES: dict[str, Callable[[dict[str, Any], dict[str, Any]], tuple[str, dict[str, Any]]]] = {
+ROUTES: dict[str, Callable[[dict[str, Any], dict[str, Any], Any], tuple[str, dict[str, Any]]]] = {
     "GET /api/search": search,
     "POST /api/reprint": reprint,
 }

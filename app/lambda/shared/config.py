@@ -5,8 +5,8 @@
 
 The SSM parameters (organizer slug, check-in list ID, pretix token, staff PIN) are read with one
 GetParameters call and kept in the warm Lambda for 5 minutes, so a new PIN or list applies
-within 5 minutes. Also builds the boto3 clients, with short timeouts so every answer reaches the
-phone well inside the Lambda's 10 s.
+within 5 minutes. Also builds the boto3 clients, with short timeouts, and checks the time left
+before each slow step, so every answer reaches the phone inside the Lambda's 10 s.
 """
 
 import os
@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 CACHE_SECONDS = 300
+PRETIX_BUDGET_MS = 8500
+SQS_BUDGET_MS = 2500
 PARAMETERS = ("pretix/organizer", "pretix/checkin-list-id", "pretix/token", "staff-pin")
 PLACEHOLDER = "set-by-script"
 
@@ -56,7 +58,8 @@ def aws_client(service: str) -> Any:
         service: The AWS service, "ssm" or "sqs".
 
     Returns:
-        The client, with 1 s connect and 2 s read timeouts and 3 attempts in standard retry mode.
+        The client, with 1 s connect and 1 s read timeouts and 2 attempts in standard retry mode,
+        so one call takes at most about 5 s.
     """
     if service not in _clients:
         import boto3
@@ -64,7 +67,7 @@ def aws_client(service: str) -> Any:
 
         _clients[service] = boto3.client(
             service,
-            config=BotoConfig(connect_timeout=1, read_timeout=2, retries={"mode": "standard", "max_attempts": 3}),
+            config=BotoConfig(connect_timeout=1, read_timeout=1, retries={"mode": "standard", "max_attempts": 2}),
         )
     return _clients[service]
 
@@ -110,6 +113,25 @@ def load(client: Any = None, clock: Callable[[], float] = time.monotonic) -> Con
     )
     _cache.update(config=config, loaded_at=now)
     return config
+
+
+def time_left_ok(context: Any, needed_ms: int) -> bool:
+    """Tell whether the Lambda has time left for a slow step.
+
+    A step started too late would be cut off by the Lambda's timeout, and the phone would get
+    API Gateway's own error instead of a message that says what to do.
+
+    Args:
+        context: The Lambda context; None (in tests) always has time.
+        needed_ms: The step's worst case in milliseconds: PRETIX_BUDGET_MS for a pretix call
+            (4 s to connect plus 4 s to read), SQS_BUDGET_MS for sending a print request.
+
+    Returns:
+        True when at least needed_ms are left.
+    """
+    if context is None:
+        return True
+    return context.get_remaining_time_in_millis() >= needed_ms
 
 
 def forget() -> None:

@@ -57,7 +57,8 @@ let memoryPin = "";
 let audio = null;
 /** @type {any} */
 let scanner = null;
-let busy = false;
+let waiting = false;
+let resting = false;
 let lastTicket = "";
 let lastTicketAt = 0;
 /** @type {ApiRequest | null} */
@@ -169,7 +170,7 @@ function showTab(tab) {
   }
   if (!scanner) {
     startCamera();
-  } else if (!busy) {
+  } else if (!waiting && !resting) {
     setPaused(false);
   }
 }
@@ -309,13 +310,13 @@ function setPaused(pause) {
 }
 
 /**
- * Handle a QR code the camera read: ignore it while busy, on the Search tab, or when it is the ticket
- * just shown; else scan it.
+ * Handle a QR code the camera read: ignore it while an answer is awaited, for 2 s after an answer, on
+ * the Search tab, or when it is the ticket just shown; else scan it.
  * @param {string} text - The QR code's text, the ticket secret.
  * @returns {void} Nothing.
  */
 function onRead(text) {
-  if (busy || activeTab !== "scan") {
+  if (waiting || resting || activeTab !== "scan") {
     return;
   }
   if (text === lastTicket && Date.now() - lastTicketAt < SAME_TICKET_MS) {
@@ -336,18 +337,20 @@ function ticketRequest(path, secret) {
 
 /**
  * Send a scan or reprint request with the camera paused, show its card, and let the camera read again
- * 2 s after the answer (on the Scan tab only).
+ * 2 s after the answer (on the Scan tab only). The card's button and the search rows work again as soon
+ * as the answer is shown; only the camera rests for those 2 s.
  * @param {ApiRequest} request - The request.
  * @returns {Promise<void>} Resolves when the card shows the answer.
  */
 async function ask(request) {
-  busy = true;
+  waiting = true;
   lastRequest = request;
   setPaused(true);
   showCard("checking", "", TEXTS.checking, "");
   const answer = await callApi("POST", request.path, request.body);
+  waiting = false;
   if (answer.status === 401) {
-    busy = false;
+    element("card").hidden = true;
     forgetPin();
     showPinScreen(TEXTS.wrongPin);
     return;
@@ -358,9 +361,10 @@ async function ask(request) {
   if (activeTab === "search") {
     refreshSearch();
   }
+  resting = true;
   window.setTimeout(() => {
-    busy = false;
-    if (activeTab === "scan") {
+    resting = false;
+    if (activeTab === "scan" && !waiting) {
       setPaused(false);
     }
   }, RESUME_AFTER_MS);
@@ -487,7 +491,7 @@ function showCard(colour, name, message, action) {
  * @returns {void} Nothing.
  */
 function onCardAction() {
-  if (busy) {
+  if (waiting) {
     return;
   }
   unlockAudio();
@@ -500,14 +504,32 @@ function onCardAction() {
 }
 
 /**
+ * Tidy the search field's text the way the API does: runs of spaces become one, and it is trimmed.
+ * No parameters.
+ * @returns {string} The text to search for.
+ */
+function searchText() {
+  return /** @type {HTMLInputElement} */ (element("search")).value.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Count characters the way the API does, so an emoji counts as one.
+ * @param {string} text - Any text.
+ * @returns {number} The number of characters (Unicode code points).
+ */
+function characters(text) {
+  return [...text].length;
+}
+
+/**
  * Search 300 ms after the last keystroke once the text has 3 characters; shorter text clears the list.
  * No parameters.
  * @returns {void} Nothing.
  */
 function onSearchInput() {
   window.clearTimeout(searchTimer);
-  const text = /** @type {HTMLInputElement} */ (element("search")).value.trim();
-  if (text.length < MIN_SEARCH) {
+  const text = searchText();
+  if (characters(text) < MIN_SEARCH) {
     searchSequence += 1;
     element("results").replaceChildren();
     showSearchMessage("");
@@ -523,8 +545,8 @@ function onSearchInput() {
  * @returns {void} Nothing.
  */
 function refreshSearch() {
-  const text = /** @type {HTMLInputElement} */ (element("search")).value.trim();
-  if (text.length >= MIN_SEARCH) {
+  const text = searchText();
+  if (characters(text) >= MIN_SEARCH) {
     runSearch(text);
   }
 }
@@ -543,6 +565,7 @@ async function runSearch(text) {
     return;
   }
   if (answer.status === 401) {
+    element("card").hidden = true;
     forgetPin();
     showPinScreen(TEXTS.wrongPin);
     return;
@@ -589,7 +612,7 @@ function renderResults(results, more) {
     detail.textContent = `${result.order_code}${checkedIn}`;
     button.append(nameLine, detail);
     button.addEventListener("click", () => {
-      if (busy) {
+      if (waiting) {
         return;
       }
       unlockAudio();
@@ -629,8 +652,16 @@ function init() {
   });
   element("change-pin").addEventListener("click", () => {
     forgetPin();
+    lastRequest = null;
+    lastTicket = "";
+    cardSecret = "";
+    cardAction = "";
+    searchSequence += 1;
     element("card").hidden = true;
+    /** @type {HTMLInputElement} */ (element("search")).value = "";
     element("results").replaceChildren();
+    showSearchMessage("");
+    element("search-more").hidden = true;
     showPinScreen("");
   });
   element("card-action").addEventListener("click", onCardAction);

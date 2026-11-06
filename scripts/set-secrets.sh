@@ -17,7 +17,7 @@ source "$(dirname "$0")/common.sh"
 
 PIN_ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
 PIN_LENGTH=10
-MIN_PIN_LENGTH=6
+MIN_PIN_LENGTH=8
 SECRET_FILE=""
 REGION=""
 PIN=""

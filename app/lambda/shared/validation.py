@@ -47,10 +47,11 @@ def read_query(event: dict[str, Any]) -> str | None:
         event: API Gateway's payload 2.0 event; queryStringParameters holds q, already decoded.
 
     Returns:
-        The trimmed text, or None when it is missing or not MIN_QUERY to MAX_QUERY characters long.
+        The text with runs of spaces collapsed to one and trimmed, or None when it is missing or
+        not MIN_QUERY to MAX_QUERY characters long.
     """
     value = (event.get("queryStringParameters") or {}).get("q")
     if not isinstance(value, str):
         return None
-    text = value.strip()
+    text = re.sub(r"\s+", " ", value).strip()
     return text if MIN_QUERY <= len(text) <= MAX_QUERY else None
