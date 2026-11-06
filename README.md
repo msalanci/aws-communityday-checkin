@@ -52,6 +52,8 @@ There are three places you work in:
 
 The zone costs $0.50 a month. If you ever delete it, remove the NS record at your DNS provider first, or someone else could claim the name.
 
+**Two computers, or one.** The **admin computer** (macOS or Linux) deploys the system to AWS and runs the scripts. The **print PC** (Windows) sits at the desk and prints the stickers; the check-ins themselves happen on the staff's phones. They are two because the print program uses Brother's b-PAC SDK, which exists only for Windows, while the admin scripts are written for bash. One Windows PC could do both, running the admin part in WSL (Linux on Windows), but that has not been tested.
+
 ### The admin computer (macOS or Linux)
 
 | Tool | Version | Check with |
