@@ -37,9 +37,9 @@ There are three places you work in:
 |---|---|
 | **pretix** organizer account | [pretix.eu](https://pretix.eu) (hosted) or your own pretix server. On pretix.eu a new organizer account is reviewed by hand before a shop can go live: **start this first**, it is the slowest step. Turn on two-factor authentication. |
 | **AWS account** | With an admin user or role you can use from the AWS CLI. Everything runs in this one account. |
-| **A domain in Route 53** | The scanner page gets its own address, `checkin.<your domain>`, so you need a **public hosted zone in Route 53, in the same AWS account**. Terraform only adds records to it; it never changes the zone. See below if your DNS is somewhere else. |
+| **A domain** | Any domain you control, with its DNS at any provider. The scanner page gets its own address, `checkin.<your domain>`. Terraform writes the page's DNS records into a public Route 53 hosted zone in this AWS account: either your domain's own zone, if it is already in Route 53 here, or a small zone just for `checkin.<your domain>`, which you hand over from your DNS provider with one NS record (below). Terraform only adds records; it never changes the zone itself. |
 
-**If your domain's DNS is elsewhere** (another DNS provider, or Route 53 in another AWS account), hand just the page's own name, for example `checkin.example.org`, over to this account:
+**If your domain's DNS is not in Route 53 in this account** (another DNS provider, or Route 53 in another AWS account), hand just the page's own name, for example `checkin.example.org`, over to this account. Your domain stays where it is:
 
 1. In this AWS account, create a public hosted zone for that name:
    ```bash
