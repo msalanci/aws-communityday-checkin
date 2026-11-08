@@ -1,7 +1,7 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-"""Settings of the scan and search_reprint Lambdas: environment variables and four SSM parameters.
+"""Settings of the scan_reprint Lambda: environment variables and four SSM parameters.
 
 The SSM parameters (organizer slug, check-in list ID, pretix token, staff PIN) are read with one
 GetParameters call and kept in the warm Lambda for 5 minutes, so a new PIN or list applies
