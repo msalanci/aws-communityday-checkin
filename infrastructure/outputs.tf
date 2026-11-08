@@ -1,8 +1,7 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# What the app stack hands on: the print queue for the print laptop's .env, and the names that the
-# operator's AWS CLI commands need.
+# What the app stack hands on: the print queue for the print laptop's .env, and the names that the operator's AWS CLI commands need.
 
 output "print_queue_url" {
   description = "URL of the print queue; goes into QUEUE_URL in the print laptop's .env."

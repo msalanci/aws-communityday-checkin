@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 # The print queue that carries print requests to the print laptop, and its dead-letter queue.
-# A print request moves to the DLQ after 5 unconfirmed prints. The DLQ keeps messages longer than the queue,
-# because a moved message keeps its original age; both keep names only briefly.
+# A print request moves to the DLQ after 5 unconfirmed prints. 
+# The DLQ keeps messages longer than the queue, because a moved message keeps its original age; 
+# both keep names only briefly.
 
 resource "aws_sqs_queue" "print_requests_dlq" {
   name                      = "${var.name_prefix}-print-requests-dlq"

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 # The two Lambdas behind the HTTP API, each with its own zip, log group, role and function. web serves the
-# scanner page's files (handler.py plus the page under static/) and may only write its own logs. scan_reprint,
-# behind every /api/ route, packs handler.py plus shared/, reads the SSM parameters, calls pretix and sends
-# print requests.
+# scanner page's files (handler.py plus the page under static/) and may only write its own logs.
+# Scan_reprint, behind every /api/ route, packs handler.py plus shared/, reads the SSM parameters, 
+# calls pretix and sends print requests.
 
 locals {
   lambda_dir = "${path.module}/../app/lambda"

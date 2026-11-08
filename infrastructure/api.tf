@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MIT
 
 # The HTTP API that serves the scanner page and its API: its stage, throttle and access log, the TLS certificate
-# validated through DNS, its custom domain with the alias record, and the routes to the two Lambdas. The default
-# execute-api address is disabled, so the custom domain is the only way in. A regional custom domain needs its
-# certificate in its own region. The DNS zone already exists: Terraform only adds records to it, never changes it.
+# validated through DNS, its custom domain with the alias record, and the routes to the two Lambdas. 
+# The default execute-api address is disabled, so the custom domain is the only way in. 
+# A regional custom domain needs its certificate in its own region. 
+# The DNS zone already exists: Terraform only adds records to it, never changes it.
 
 locals {
   scanner_host = var.subdomain == "" ? var.domain_name : "${var.subdomain}.${var.domain_name}"

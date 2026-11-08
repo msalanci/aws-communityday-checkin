@@ -3,8 +3,8 @@
 
 # The IAM user of the print laptop: it may only receive and delete print requests on the print queue.
 # Its access key is created outside Terraform, with the AWS CLI, so the secret never reaches the state;
-# force_destroy lets terraform destroy remove the user together with that key. Temporary credentials made
-# from the key are refused, so deleting the key cuts off every copy of it at once.
+# force_destroy lets terraform destroy remove the user together with that key. 
+# Temporary credentials made from the key are refused, so deleting the key cuts off every copy of it at once.
 
 data "aws_iam_policy_document" "print_laptop" {
   statement {
