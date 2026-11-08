@@ -8,11 +8,6 @@ output "print_queue_url" {
   value       = aws_sqs_queue.print_requests.id
 }
 
-output "print_queue_arn" {
-  description = "ARN of the print queue."
-  value       = aws_sqs_queue.print_requests.arn
-}
-
 output "print_dlq_url" {
   description = "URL of the print queue's dead-letter queue."
   value       = aws_sqs_queue.print_requests_dlq.id
@@ -41,11 +36,6 @@ output "scanner_url" {
 output "ssm_prefix" {
   description = "Prefix of the SSM parameters, for the scripts that set them."
   value       = var.ssm_prefix
-}
-
-output "api_id" {
-  description = "ID of the HTTP API."
-  value       = aws_apigatewayv2_api.checkin.id
 }
 
 output "project_tag" {
