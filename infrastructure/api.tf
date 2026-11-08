@@ -126,19 +126,12 @@ resource "aws_apigatewayv2_route" "web" {
   target    = "integrations/${aws_apigatewayv2_integration.web.id}"
 }
 
-resource "aws_lambda_permission" "api_invokes_web" {
-  for_each = {
-    root   = "/*/GET/"
-    script = "/*/GET/app.js"
-    styles = "/*/GET/styles.css"
-    vendor = "/*/GET/vendor/*"
-  }
-
-  statement_id  = "ApiInvokesWeb-${each.key}"
+resource "aws_lambda_permission" "api_invokes_web_routes" {
+  statement_id  = "ApiInvokesWeb"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.web.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}${each.value}"
+  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/GET/*"
 }
 
 resource "aws_apigatewayv2_integration" "scan_reprint" {
@@ -157,16 +150,10 @@ resource "aws_apigatewayv2_route" "scan_reprint" {
   target    = "integrations/${aws_apigatewayv2_integration.scan_reprint.id}"
 }
 
-resource "aws_lambda_permission" "api_invokes_scan_reprint" {
-  for_each = {
-    scan    = "/*/POST/api/scan"
-    search  = "/*/GET/api/search"
-    reprint = "/*/POST/api/reprint"
-  }
-
-  statement_id  = "ApiInvokesScanReprint-${each.key}"
+resource "aws_lambda_permission" "api_invokes_scan_reprint_routes" {
+  statement_id  = "ApiInvokesScanReprint"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.scan_reprint.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}${each.value}"
+  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/*/api/*"
 }
