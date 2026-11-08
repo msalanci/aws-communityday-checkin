@@ -7,7 +7,7 @@ pretix answers a redeem in the JSON's "status", not in the HTTP code (201 for ok
 unknown ticket, 400 for most refusals), so any response whose JSON has "status" is an answer; a
 search answers 200 with a page of "results".
 Everything else is pretix being unavailable, in one of three kinds the phone explains
-differently: no_answer, busy, access. The Lambdas never retry pretix themselves, and never follow
+differently: no_answer, busy, access. The Lambda never retries pretix itself, and never follows
 a redirect, which would carry the token to another address.
 """
 

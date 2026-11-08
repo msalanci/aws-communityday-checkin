@@ -257,7 +257,7 @@ When it is done, `terraform -chdir=infrastructure output scanner_url` shows your
 scripts/set-pretix-config.sh --organizer <slug> --list <check-in list ID>
 ```
 
-Give both the first time; later you can give either one alone, to change only that one. The slug is lowercase letters, digits and hyphens, for example `my-community`; the list ID is digits only, for example `123456`. The Lambdas use a new value within 5 minutes.
+Give both the first time; later you can give either one alone, to change only that one. The slug is lowercase letters, digits and hyphens, for example `my-community`; the list ID is digits only, for example `123456`. The Lambda uses a new value within 5 minutes.
 
 ## 3.5 Store the pretix token and choose the staff PIN
 
