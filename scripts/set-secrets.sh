@@ -2,13 +2,14 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# Stores the two secrets the Lambdas read as SSM SecureStrings, outside Terraform, so they never reach its state.
+# Stores the two secrets the scan_reprint Lambda reads as SSM SecureStrings, outside Terraform, so they never
+# reach its state.
 #
 # Usage: scripts/set-secrets.sh --token   asks for the pretix "lambda" token without showing it
 #        scripts/set-secrets.sh --pin     asks for the staff PIN you want, typed twice without showing it;
 #                                         Enter alone generates a random one and shows it once
 #
-# The Lambdas use a new value within 5 minutes; after a new PIN, staff type it on their phones again.
+# The Lambda uses a new value within 5 minutes; after a new PIN, staff type it on their phones again.
 # A secret never appears on a command line: it reaches the AWS CLI through a temporary file only this
 # user can read, deleted when the script ends.
 
@@ -103,11 +104,11 @@ main() {
   tag="$(tf_output project_tag)"
   REGION="$(tf_output aws_region)"
   if [[ "$1" == "--token" ]]; then
-    read -r -s -p "pretix token of the Lambdas (it is not shown): " token
+    read -r -s -p "pretix token of the Lambda (it is not shown): " token
     printf '\n'
     [[ -n "$token" ]] || fail "no token given"
-    put_secret "$prefix/pretix/token" "$token" "pretix API token of the Lambdas" "$tag"
-    printf 'Stored %s/pretix/token. The Lambdas use it within 5 minutes.\n' "$prefix"
+    put_secret "$prefix/pretix/token" "$token" "pretix API token of the scan_reprint Lambda" "$tag"
+    printf 'Stored %s/pretix/token. The Lambda uses it within 5 minutes.\n' "$prefix"
   else
     choose_pin
     put_secret "$prefix/staff-pin" "$PIN" "Staff PIN of the scanner page" "$tag"

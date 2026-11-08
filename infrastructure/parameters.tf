@@ -1,7 +1,8 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# The two non-secret SSM parameters the Lambdas read: the pretix organizer slug and the check-in list ID.
+# The two non-secret SSM parameters the scan_reprint Lambda reads: the pretix organizer slug and the check-in
+# list ID.
 # Terraform creates them with a placeholder and never touches their values again, which a script sets.
 # The pretix token and the staff PIN are not here: scripts create them, so no secret reaches the state.
 

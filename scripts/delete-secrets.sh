@@ -6,9 +6,9 @@
 #
 # Usage: scripts/delete-secrets.sh
 #
-# Within 5 minutes the Lambdas stop working (they answer "call the organizer"): a warm Lambda keeps the
-# values it read for up to 5 minutes. The two non-secret parameters belong to Terraform and go with
-# terraform destroy.
+# Within 5 minutes the scan_reprint Lambda stops working (it answers "call the organizer"): a warm Lambda
+# keeps the values it read for up to 5 minutes. The two non-secret parameters belong to Terraform and go
+# with terraform destroy.
 
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
