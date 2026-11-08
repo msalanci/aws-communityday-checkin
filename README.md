@@ -459,4 +459,4 @@ Every script except `build-print-laptop-zip.sh` reads its AWS names from `terraf
 
 ---
 
-**Licence:** MIT, see `LICENSE`. `app/web/vendor/html5-qrcode.min.js` is html5-qrcode, under the Apache License 2.0: see `app/web/vendor/html5-qrcode.LICENSE`.
+**Licence:** MIT, see `LICENSE`. `app/lambda/web/static/vendor/html5-qrcode.min.js` is html5-qrcode, under the Apache License 2.0: see `app/lambda/web/static/vendor/html5-qrcode.LICENSE`.

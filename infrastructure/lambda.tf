@@ -40,7 +40,7 @@ data "archive_file" "web" {
   dynamic "source" {
     for_each = toset(local.web_files)
     content {
-      content  = file("${path.module}/../app/web/${source.value}")
+      content  = file("${local.lambda_dir}/web/static/${source.value}")
       filename = "static/${source.value}"
     }
   }
