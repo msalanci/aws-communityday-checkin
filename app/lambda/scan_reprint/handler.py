@@ -14,8 +14,15 @@ EVENT_UTC_OFFSET. Every outcome about a ticket is HTTP 200 with "result" and "me
 import time
 from typing import Any, Callable
 
-from shared import auth, config, logs, names, outcomes, pretix, print_queue, validation
-from shared.responses import attendee, respond
+import auth
+import config
+import logs
+import names
+import outcomes
+import pretix
+import print_queue
+import validation
+from responses import attendee, respond
 
 REPRINT_LOOKUP_SIZE = 2
 

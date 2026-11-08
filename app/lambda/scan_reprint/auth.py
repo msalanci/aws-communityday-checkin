@@ -6,8 +6,9 @@
 import hmac
 from typing import Any
 
-from shared import config, outcomes
-from shared.responses import respond
+import config
+import outcomes
+from responses import respond
 
 
 def pin_ok(headers: dict[str, Any] | None, staff_pin: str) -> bool:

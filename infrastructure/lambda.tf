@@ -3,7 +3,7 @@
 
 # The two Lambdas behind the HTTP API, each with its own zip, log group, role and function. web serves the
 # scanner page's files (handler.py plus the page under static/) and may only write its own logs.
-# Scan_reprint, behind every /api/ route, packs handler.py plus shared/, reads the SSM parameters, 
+# Scan_reprint, behind every /api/ route, packs handler.py and its modules, reads the SSM parameters, 
 # calls pretix and sends print requests.
 
 locals {
@@ -50,16 +50,11 @@ data "archive_file" "scan_reprint" {
   type        = "zip"
   output_path = "${local.build_dir}/scan_reprint.zip"
 
-  source {
-    content  = file("${local.lambda_dir}/scan_reprint/handler.py")
-    filename = "handler.py"
-  }
-
   dynamic "source" {
-    for_each = fileset("${local.lambda_dir}/shared", "*.py")
+    for_each = fileset("${local.lambda_dir}/scan_reprint", "*.py")
     content {
-      content  = file("${local.lambda_dir}/shared/${source.value}")
-      filename = "shared/${source.value}"
+      content  = file("${local.lambda_dir}/scan_reprint/${source.value}")
+      filename = source.value
     }
   }
 }

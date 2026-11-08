@@ -20,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from shared.config import Config
+from config import Config
 
 TIMEOUT_SECONDS = 4
 USER_AGENT = "cd-registration-app"

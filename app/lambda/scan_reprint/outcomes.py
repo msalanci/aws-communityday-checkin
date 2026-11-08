@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from shared import config
+import config
 
 CHECKED_IN = "{name} — printing"
 ALREADY_CHECKED_IN = "Already checked in at {time}"
