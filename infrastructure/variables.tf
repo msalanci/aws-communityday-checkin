@@ -89,14 +89,3 @@ variable "event_timezone" {
     error_message = "The event time zone must not be empty."
   }
 }
-
-variable "event_utc_offset" {
-  type        = string
-  description = "Fixed UTC offset such as +01:00, used only if the Lambda runtime has no time zone data; empty for none."
-  default     = ""
-
-  validation {
-    condition     = var.event_utc_offset == "" || can(regex("^[+-][0-9]{2}:[0-9]{2}$", var.event_utc_offset))
-    error_message = "The UTC offset must be empty or look like +01:00."
-  }
-}

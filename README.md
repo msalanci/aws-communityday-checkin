@@ -243,7 +243,6 @@ cd ..
 | `subdomain` | `checkin` | The page lives at `https://<subdomain>.<domain_name>`. One word without dots: lowercase letters, digits and hyphens. Set `""` to put the page at `domain_name` itself, only with a zone made just for the page (1.1). The page's name must not already have a record in the zone |
 | `aws_region` | `eu-central-1` | Region for everything, the certificate included |
 | `event_timezone` | `Europe/Bratislava` | Your event's time zone, for "Already checked in at 09:14". Set it unless the event is in Central European time, with an IANA name such as `Europe/London` |
-| `event_utc_offset` | `""` | A fixed offset such as `+02:00`, used only if the Lambda runtime has no time zone data; leave it empty |
 | `name_prefix` | `cd-registration` | Prefix of every AWS resource name |
 | `ssm_prefix` | `/cd-registration` | Where the settings live in SSM Parameter Store |
 | `pretix_base_url` | `https://pretix.eu` | Change it only for your own pretix server: `https://` and the server's name, with no path and no `/` at the end |

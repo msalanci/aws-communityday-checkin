@@ -8,7 +8,6 @@ messages itself, so a wording change is one edit here. Times are shown in the ev
 """
 
 import datetime
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,8 +29,6 @@ UNAVAILABLE = {
     "access": "The system can't use pretix — call the organizer",
 }
 ERROR = "Something went wrong — try again"
-
-OFFSET_PATTERN = re.compile(r"([+-])(\d{2}):(\d{2})")
 
 
 @dataclass(frozen=True)
@@ -66,17 +63,15 @@ def read_answer(body: dict[str, Any]) -> Reading:
     return Reading("refused", str(status))
 
 
-def event_zone(name: str, utc_offset: str) -> tuple[datetime.tzinfo, str]:
+def event_zone(name: str) -> tuple[datetime.tzinfo, str]:
     """Find the event's time zone.
 
     Args:
         name: The IANA name, for example "Europe/Bratislava".
-        utc_offset: A fixed offset such as "+01:00", used only when the runtime has no time zone
-            data; may be empty.
 
     Returns:
-        (zone, how): how is "zoneinfo", "offset" or "utc", for the log line when it is not
-        zoneinfo.
+        (zone, how): how is "zoneinfo", or "utc" when the runtime has no time zone data for that
+        name, for the log line.
     """
     try:
         import zoneinfo
@@ -84,11 +79,6 @@ def event_zone(name: str, utc_offset: str) -> tuple[datetime.tzinfo, str]:
         return zoneinfo.ZoneInfo(name), "zoneinfo"
     except Exception:
         pass
-    match = OFFSET_PATTERN.fullmatch(utc_offset or "")
-    if match:
-        sign = -1 if match.group(1) == "-" else 1
-        delta = datetime.timedelta(hours=int(match.group(2)), minutes=int(match.group(3)))
-        return datetime.timezone(sign * delta), "offset"
     return datetime.timezone.utc, "utc"
 
 
@@ -99,9 +89,9 @@ def zone_from_env(fields: dict[str, Any]) -> datetime.tzinfo:
         fields: The log line's fields; gets time_zone when EVENT_TIMEZONE was not found.
 
     Returns:
-        The zone of EVENT_TIMEZONE, else the fixed EVENT_UTC_OFFSET, else UTC.
+        The zone of EVENT_TIMEZONE, else UTC.
     """
-    zone, how = event_zone(config.env("EVENT_TIMEZONE", "Europe/Bratislava"), config.env("EVENT_UTC_OFFSET"))
+    zone, how = event_zone(config.env("EVENT_TIMEZONE", "Europe/Bratislava"))
     if how != "zoneinfo":
         fields["time_zone"] = how
     return zone

@@ -150,11 +150,10 @@ resource "aws_lambda_function" "scan_reprint" {
 
   environment {
     variables = {
-      SSM_PREFIX       = var.ssm_prefix
-      QUEUE_URL        = aws_sqs_queue.print_requests.id
-      PRETIX_BASE_URL  = var.pretix_base_url
-      EVENT_TIMEZONE   = var.event_timezone
-      EVENT_UTC_OFFSET = var.event_utc_offset
+      SSM_PREFIX      = var.ssm_prefix
+      QUEUE_URL       = aws_sqs_queue.print_requests.id
+      PRETIX_BASE_URL = var.pretix_base_url
+      EVENT_TIMEZONE  = var.event_timezone
     }
   }
 

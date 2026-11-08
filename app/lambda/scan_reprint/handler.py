@@ -7,8 +7,8 @@ POST /api/scan checks a ticket in at pretix and, for a valid ticket with a name,
 request on the print queue. GET /api/search finds attendees on the check-in list by name or order
 code, never by email, for a manual check-in or a reprint. POST /api/reprint prints another sticker
 for a ticket that is already checked in, without checking it in again. Every route checks the
-staff PIN first. Environment: SSM_PREFIX, QUEUE_URL, PRETIX_BASE_URL, EVENT_TIMEZONE,
-EVENT_UTC_OFFSET. Every outcome about a ticket is HTTP 200 with "result" and "message".
+staff PIN first. Environment: SSM_PREFIX, QUEUE_URL, PRETIX_BASE_URL, EVENT_TIMEZONE. Every
+outcome about a ticket is HTTP 200 with "result" and "message".
 """
 
 import time
