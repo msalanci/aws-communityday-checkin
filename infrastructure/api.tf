@@ -1,8 +1,19 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# The HTTP API that serves the scanner page and its API under one custom domain, with its stage, throttle
-# and access log. The default execute-api address is disabled, so the custom domain is the only way in.
+# The HTTP API that serves the scanner page and its API: its stage, throttle and access log, the TLS certificate
+# validated through DNS, its custom domain with the alias record, and the routes to the two Lambdas. The default
+# execute-api address is disabled, so the custom domain is the only way in. A regional custom domain needs its
+# certificate in its own region. The DNS zone already exists: Terraform only adds records to it, never changes it.
+
+locals {
+  scanner_host = var.subdomain == "" ? var.domain_name : "${var.subdomain}.${var.domain_name}"
+}
+
+data "aws_route53_zone" "parent" {
+  name         = var.domain_name
+  private_zone = false
+}
 
 resource "aws_apigatewayv2_api" "checkin" {
   name                         = "${var.name_prefix}-api"
@@ -39,26 +50,63 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
-resource "aws_apigatewayv2_integration" "scan" {
-  api_id                 = aws_apigatewayv2_api.checkin.id
-  description            = "scan Lambda"
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.scan.invoke_arn
-  payload_format_version = "2.0"
+resource "aws_acm_certificate" "scanner" {
+  domain_name       = local.scanner_host
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
-resource "aws_apigatewayv2_route" "scan" {
-  api_id    = aws_apigatewayv2_api.checkin.id
-  route_key = "POST /api/scan"
-  target    = "integrations/${aws_apigatewayv2_integration.scan.id}"
+resource "aws_route53_record" "certificate_validation" {
+  for_each = {
+    for option in aws_acm_certificate.scanner.domain_validation_options : option.domain_name => {
+      name   = option.resource_record_name
+      type   = option.resource_record_type
+      record = option.resource_record_value
+    }
+  }
+
+  zone_id         = data.aws_route53_zone.parent.zone_id
+  name            = each.value.name
+  type            = each.value.type
+  records         = [each.value.record]
+  ttl             = 300
+  allow_overwrite = true
 }
 
-resource "aws_lambda_permission" "api_invokes_scan" {
-  statement_id  = "ApiInvokesScan"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.scan.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/POST/api/scan"
+resource "aws_acm_certificate_validation" "scanner" {
+  certificate_arn         = aws_acm_certificate.scanner.arn
+  validation_record_fqdns = [for record in aws_route53_record.certificate_validation : record.fqdn]
+}
+
+resource "aws_apigatewayv2_domain_name" "scanner" {
+  domain_name = local.scanner_host
+
+  domain_name_configuration {
+    certificate_arn = aws_acm_certificate_validation.scanner.certificate_arn
+    endpoint_type   = "REGIONAL"
+    security_policy = "TLS_1_2"
+  }
+}
+
+resource "aws_apigatewayv2_api_mapping" "scanner" {
+  api_id      = aws_apigatewayv2_api.checkin.id
+  domain_name = aws_apigatewayv2_domain_name.scanner.id
+  stage       = aws_apigatewayv2_stage.default.id
+}
+
+resource "aws_route53_record" "scanner" {
+  zone_id = data.aws_route53_zone.parent.zone_id
+  name    = local.scanner_host
+  type    = "A"
+
+  alias {
+    name                   = aws_apigatewayv2_domain_name.scanner.domain_name_configuration[0].target_domain_name
+    zone_id                = aws_apigatewayv2_domain_name.scanner.domain_name_configuration[0].hosted_zone_id
+    evaluate_target_health = false
+  }
 }
 
 resource "aws_apigatewayv2_integration" "web" {
@@ -92,31 +140,32 @@ resource "aws_lambda_permission" "api_invokes_web" {
   source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}${each.value}"
 }
 
-resource "aws_apigatewayv2_integration" "search_reprint" {
+resource "aws_apigatewayv2_integration" "scan_reprint" {
   api_id                 = aws_apigatewayv2_api.checkin.id
-  description            = "search_reprint Lambda"
+  description            = "scan_reprint Lambda"
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.search_reprint.invoke_arn
+  integration_uri        = aws_lambda_function.scan_reprint.invoke_arn
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "search_reprint" {
-  for_each = toset(["GET /api/search", "POST /api/reprint"])
+resource "aws_apigatewayv2_route" "scan_reprint" {
+  for_each = toset(["POST /api/scan", "GET /api/search", "POST /api/reprint"])
 
   api_id    = aws_apigatewayv2_api.checkin.id
   route_key = each.value
-  target    = "integrations/${aws_apigatewayv2_integration.search_reprint.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.scan_reprint.id}"
 }
 
-resource "aws_lambda_permission" "api_invokes_search_reprint" {
+resource "aws_lambda_permission" "api_invokes_scan_reprint" {
   for_each = {
+    scan    = "/*/POST/api/scan"
     search  = "/*/GET/api/search"
     reprint = "/*/POST/api/reprint"
   }
 
-  statement_id  = "ApiInvokesSearchReprint-${each.key}"
+  statement_id  = "ApiInvokesScanReprint-${each.key}"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.search_reprint.function_name
+  function_name = aws_lambda_function.scan_reprint.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}${each.value}"
 }
