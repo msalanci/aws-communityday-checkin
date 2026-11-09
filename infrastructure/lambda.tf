@@ -1,7 +1,7 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# The two Lambdas behind the HTTP API, each with its own zip, log group, role and function. web serves the
+# The two Lambdas behind the HTTP API, each with its own zip, log group and function. web serves the
 # scanner page's files (handler.py plus the page under static/) and may only write its own logs.
 # Scan_reprint, behind every /api/ route, packs handler.py and its modules, reads the SSM parameters, 
 # calls pretix and sends print requests.
@@ -10,22 +10,6 @@ locals {
   lambda_dir = "${path.module}/../app/lambda"
   build_dir  = "${path.module}/.build"
   web_files  = ["index.html", "app.js", "styles.css", "vendor/html5-qrcode.min.js"]
-}
-
-data "aws_caller_identity" "current" {}
-
-data "aws_partition" "current" {}
-
-data "aws_iam_policy_document" "lambda_assume" {
-  statement {
-    sid     = "LambdaAssumesRole"
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
 }
 
 data "archive_file" "web" {
@@ -59,49 +43,9 @@ data "archive_file" "scan_reprint" {
   }
 }
 
-data "aws_iam_policy_document" "web" {
-  statement {
-    sid       = "WriteOwnLogs"
-    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.web.arn}:*"]
-  }
-}
-
-data "aws_iam_policy_document" "scan_reprint" {
-  statement {
-    sid       = "WriteOwnLogs"
-    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.scan_reprint.arn}:*"]
-  }
-
-  statement {
-    sid       = "ReadCheckinParameters"
-    actions   = ["ssm:GetParameters"]
-    resources = ["arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_prefix}/*"]
-  }
-
-  statement {
-    sid       = "SendPrintRequests"
-    actions   = ["sqs:SendMessage"]
-    resources = [aws_sqs_queue.print_requests.arn]
-  }
-}
-
 resource "aws_cloudwatch_log_group" "web" {
   name              = "/aws/lambda/${var.name_prefix}-web"
   retention_in_days = 7
-}
-
-resource "aws_iam_role" "web" {
-  name               = "${var.name_prefix}-web"
-  description        = "Role of the web Lambda"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-resource "aws_iam_role_policy" "web" {
-  name   = "web"
-  role   = aws_iam_role.web.id
-  policy = data.aws_iam_policy_document.web.json
 }
 
 resource "aws_lambda_function" "web" {
@@ -122,18 +66,6 @@ resource "aws_lambda_function" "web" {
 resource "aws_cloudwatch_log_group" "scan_reprint" {
   name              = "/aws/lambda/${var.name_prefix}-scan-reprint"
   retention_in_days = 7
-}
-
-resource "aws_iam_role" "scan_reprint" {
-  name               = "${var.name_prefix}-scan-reprint"
-  description        = "Role of the scan_reprint Lambda"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-resource "aws_iam_role_policy" "scan_reprint" {
-  name   = "scan-reprint"
-  role   = aws_iam_role.scan_reprint.id
-  policy = data.aws_iam_policy_document.scan_reprint.json
 }
 
 resource "aws_lambda_function" "scan_reprint" {
