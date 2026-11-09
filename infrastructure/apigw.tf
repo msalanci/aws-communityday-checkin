@@ -6,6 +6,7 @@
 # The default execute-api address is disabled, so the custom domain is the only way in. 
 # A regional custom domain needs its certificate in its own region. 
 # The DNS zone already exists: Terraform only adds records to it, never changes it.
+# Each integration waits for its function's invoke permission, so API Gateway never calls a function it may not.
 
 locals {
   scanner_host = var.subdomain == "" ? var.domain_name : "${var.subdomain}.${var.domain_name}"
@@ -110,12 +111,22 @@ resource "aws_route53_record" "scanner" {
   }
 }
 
+resource "aws_lambda_permission" "api_invokes_web_routes" {
+  statement_id  = "ApiInvokesWeb"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.web.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/GET/*"
+}
+
 resource "aws_apigatewayv2_integration" "web" {
   api_id                 = aws_apigatewayv2_api.checkin.id
   description            = "web Lambda"
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.web.invoke_arn
   payload_format_version = "2.0"
+
+  depends_on = [aws_lambda_permission.api_invokes_web_routes]
 }
 
 resource "aws_apigatewayv2_route" "web" {
@@ -126,34 +137,28 @@ resource "aws_apigatewayv2_route" "web" {
   target    = "integrations/${aws_apigatewayv2_integration.web.id}"
 }
 
-resource "aws_lambda_permission" "api_invokes_web_routes" {
-  statement_id  = "ApiInvokesWeb"
+resource "aws_lambda_permission" "api_invokes_scan-print_routes" {
+  statement_id  = "ApiInvokesScanPrint"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.web.function_name
+  function_name = aws_lambda_function.scan-print.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/GET/*"
+  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/*/api/*"
 }
 
-resource "aws_apigatewayv2_integration" "scan_reprint" {
+resource "aws_apigatewayv2_integration" "scan-print" {
   api_id                 = aws_apigatewayv2_api.checkin.id
-  description            = "scan_reprint Lambda"
+  description            = "scan-print Lambda"
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.scan_reprint.invoke_arn
+  integration_uri        = aws_lambda_function.scan-print.invoke_arn
   payload_format_version = "2.0"
+
+  depends_on = [aws_lambda_permission.api_invokes_scan-print_routes]
 }
 
-resource "aws_apigatewayv2_route" "scan_reprint" {
+resource "aws_apigatewayv2_route" "scan-print" {
   for_each = toset(["POST /api/scan", "GET /api/search", "POST /api/reprint"])
 
   api_id    = aws_apigatewayv2_api.checkin.id
   route_key = each.value
-  target    = "integrations/${aws_apigatewayv2_integration.scan_reprint.id}"
-}
-
-resource "aws_lambda_permission" "api_invokes_scan_reprint_routes" {
-  statement_id  = "ApiInvokesScanReprint"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.scan_reprint.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.checkin.execution_arn}/*/*/api/*"
+  target    = "integrations/${aws_apigatewayv2_integration.scan-print.id}"
 }

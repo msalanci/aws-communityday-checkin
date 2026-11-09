@@ -2,7 +2,7 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# Writes the two non-secret pretix settings the scan_reprint Lambda reads: the organizer slug and the check-in
+# Writes the two non-secret pretix settings the scan-print Lambda reads: the organizer slug and the check-in
 # list ID.
 #
 # Usage: scripts/set-pretix-config.sh [--organizer <slug>] [--list <id>]

@@ -30,11 +30,11 @@ data "aws_iam_policy_document" "web" {
   }
 }
 
-data "aws_iam_policy_document" "scan_reprint" {
+data "aws_iam_policy_document" "scan-print" {
   statement {
     sid       = "WriteOwnLogs"
     actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.scan_reprint.arn}:*"]
+    resources = ["${aws_cloudwatch_log_group.scan-print.arn}:*"]
   }
 
   statement {
@@ -86,16 +86,16 @@ resource "aws_iam_role_policy" "web" {
   policy = data.aws_iam_policy_document.web.json
 }
 
-resource "aws_iam_role" "scan_reprint" {
-  name               = "${var.name_prefix}-scan-reprint"
-  description        = "Role of the scan_reprint Lambda"
+resource "aws_iam_role" "scan-print" {
+  name               = "${var.name_prefix}-scan-print"
+  description        = "Role of the scan-print Lambda"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
 }
 
-resource "aws_iam_role_policy" "scan_reprint" {
-  name   = "scan-reprint"
-  role   = aws_iam_role.scan_reprint.id
-  policy = data.aws_iam_policy_document.scan_reprint.json
+resource "aws_iam_role_policy" "scan-print" {
+  name   = "scan-print"
+  role   = aws_iam_role.scan-print.id
+  policy = data.aws_iam_policy_document.scan-print.json
 }
 
 resource "aws_iam_user" "print_laptop" {

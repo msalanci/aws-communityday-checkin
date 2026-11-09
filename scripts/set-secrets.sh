@@ -2,7 +2,7 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# Stores the two secrets the scan_reprint Lambda reads as SSM SecureStrings, outside Terraform, so they never
+# Stores the two secrets the scan-print Lambda reads as SSM SecureStrings, outside Terraform, so they never
 # reach its state.
 #
 # Usage: scripts/set-secrets.sh --token   asks for the pretix "lambda" token without showing it
@@ -107,7 +107,7 @@ main() {
     read -r -s -p "pretix token of the Lambda (it is not shown): " token
     printf '\n'
     [[ -n "$token" ]] || fail "no token given"
-    put_secret "$prefix/pretix/token" "$token" "pretix API token of the scan_reprint Lambda" "$tag"
+    put_secret "$prefix/pretix/token" "$token" "pretix API token of the scan-print Lambda" "$tag"
     printf 'Stored %s/pretix/token. The Lambda uses it within 5 minutes.\n' "$prefix"
   else
     choose_pin

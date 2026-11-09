@@ -1,7 +1,7 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-"""The scan_reprint Lambda, behind every /api/ route, which the route key chooses.
+"""The scan-print Lambda, behind every /api/ route, which the route key chooses.
 
 POST /api/scan checks a ticket in at pretix and, for a valid ticket with a name, puts a print
 request on the print queue. GET /api/search finds attendees on the check-in list by name or order

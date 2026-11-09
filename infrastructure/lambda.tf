@@ -1,10 +1,9 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# The two Lambdas behind the HTTP API, each with its own zip, log group and function. web serves the
-# scanner page's files (handler.py plus the page under static/) and may only write its own logs.
-# Scan_reprint, behind every /api/ route, packs handler.py and its modules, reads the SSM parameters, 
-# calls pretix and sends print requests.
+# The two Lambdas behind the HTTP API, each with its own zip, log group and function.
+# Web serves the scanner page's files (handler.py plus the page under static/) and may only write its own logs.
+# Scan-print, behind every /api/ route, packs handler.py and its modules, reads the SSM parameters, calls pretix and sends print requests.
 
 locals {
   lambda_dir = "${path.module}/../app/lambda"
@@ -30,14 +29,14 @@ data "archive_file" "web" {
   }
 }
 
-data "archive_file" "scan_reprint" {
+data "archive_file" "scan-print" {
   type        = "zip"
-  output_path = "${local.build_dir}/scan_reprint.zip"
+  output_path = "${local.build_dir}/scan-print.zip"
 
   dynamic "source" {
-    for_each = fileset("${local.lambda_dir}/scan_reprint", "*.py")
+    for_each = fileset("${local.lambda_dir}/scan-print", "*.py")
     content {
-      content  = file("${local.lambda_dir}/scan_reprint/${source.value}")
+      content  = file("${local.lambda_dir}/scan-print/${source.value}")
       filename = source.value
     }
   }
@@ -63,20 +62,20 @@ resource "aws_lambda_function" "web" {
   depends_on = [aws_cloudwatch_log_group.web, aws_iam_role_policy.web]
 }
 
-resource "aws_cloudwatch_log_group" "scan_reprint" {
-  name              = "/aws/lambda/${var.name_prefix}-scan-reprint"
+resource "aws_cloudwatch_log_group" "scan-print" {
+  name              = "/aws/lambda/${var.name_prefix}-scan-print"
   retention_in_days = 7
 }
 
-resource "aws_lambda_function" "scan_reprint" {
-  function_name    = "${var.name_prefix}-scan-reprint"
+resource "aws_lambda_function" "scan-print" {
+  function_name    = "${var.name_prefix}-scan-print"
   description      = "Every /api/ route: POST /api/scan, GET /api/search and POST /api/reprint"
-  role             = aws_iam_role.scan_reprint.arn
+  role             = aws_iam_role.scan-print.arn
   runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "handler.handler"
-  filename         = data.archive_file.scan_reprint.output_path
-  source_code_hash = data.archive_file.scan_reprint.output_base64sha256
+  filename         = data.archive_file.scan-print.output_path
+  source_code_hash = data.archive_file.scan-print.output_base64sha256
   memory_size      = 256
   timeout          = 10
 
@@ -89,5 +88,5 @@ resource "aws_lambda_function" "scan_reprint" {
     }
   }
 
-  depends_on = [aws_cloudwatch_log_group.scan_reprint, aws_iam_role_policy.scan_reprint]
+  depends_on = [aws_cloudwatch_log_group.scan-print, aws_iam_role_policy.scan-print]
 }
