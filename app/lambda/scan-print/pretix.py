@@ -104,13 +104,7 @@ class SearchPage:
     more: bool
 
 
-def redeem(
-    config: Config,
-    base_url: str,
-    secret: str,
-    nonce: str,
-    opener: Callable[..., Any] | None = None,
-) -> PretixAnswer:
+def redeem(config: Config, base_url: str, secret: str, nonce: str, opener: Callable[..., Any] | None = None) -> PretixAnswer:
     """Check a ticket in on the check-in list.
 
     Args:
