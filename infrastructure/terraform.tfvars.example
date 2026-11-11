@@ -1,7 +1,10 @@
 # Copyright (c) 2026-2027 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# Example inputs of the app stack. Copy to terraform.tfvars and put your own domain in; the rest have defaults.
+# Example inputs of the app stack. Copy to terraform.tfvars and put your own domain and pretix settings in; the rest have defaults.
 aws_region  = "eu-central-1"
 name_prefix = "cd-registration"
 domain_name = "example.org"
+
+pretix_organizer       = "my-community"
+pretix_checkin_list_id = "123456"

@@ -141,7 +141,7 @@ pretix creates a check-in list with every event. Open it in your event: **Check-
 - **"Allow multiple entries"**: off (a ticket checks in once);
 - **"Include pending orders"**: off.
 
-Write down two values from your browser's address bar:
+Write down two values from your browser's address bar; they go into `terraform.tfvars` in step 3.3:
 
 | Value | Where | Example |
 |---|---|---|
@@ -157,7 +157,7 @@ The AWS side calls pretix with an API token:
 1. Open `https://pretix.eu/control/organizer/<slug>/teams` (your organizer → Teams).
 2. Click the team the token should belong to. A team with access to your event and permission to check in is enough. A team with full rights works too, but then the token can do anything in your organizer account.
 3. Scroll down to **API tokens**, type a name such as `lambda`, and click the button next to it.
-4. pretix shows the token **once**. Keep it at hand for step 3.5; it goes straight into AWS and nowhere else.
+4. pretix shows the token **once**. Keep it at hand for step 3.4; it goes straight into AWS and nowhere else.
 
 ---
 
@@ -179,9 +179,9 @@ aws sts get-caller-identity        # shows the account you will deploy to
 |---|---|---|---|---|
 | `infrastructure/bootstrap/terraform.tfvars.example` | `infrastructure/bootstrap/terraform.tfvars` | step 3.2 | the state bucket's name | `name = "value"`: text in quotes, `true`/`false` without |
 | `infrastructure/bootstrap/backend.hcl.example` | `infrastructure/bootstrap/backend.hcl` | step 3.2 | where the bootstrap's state file lives | `name = "value"`: text in quotes, `true`/`false` without |
-| `infrastructure/terraform.tfvars.example` | `infrastructure/terraform.tfvars` | step 3.3 | your domain and the app's other settings | `name = "value"`: text in quotes, `true`/`false` without |
+| `infrastructure/terraform.tfvars.example` | `infrastructure/terraform.tfvars` | step 3.3 | your domain, your pretix organizer and check-in list, and the app's other settings | `name = "value"`: text in quotes, `true`/`false` without |
 | `infrastructure/backend.hcl.example` | `infrastructure/backend.hcl` | step 3.3 | the state bucket and its region | `name = "value"`: text in quotes, `true`/`false` without |
-| `app/print_laptop/.env.example` | `app/print_laptop/.env` | step 3.7 | the print computer's settings | `NAME=value`, no quotes |
+| `app/print_laptop/.env.example` | `app/print_laptop/.env` | step 3.6 | the print computer's settings | `NAME=value`, no quotes |
 
 Each step below shows its own copy commands, for example:
 
@@ -227,7 +227,7 @@ cp backend.hcl.example backend.hcl                       # your copy; the .examp
 ```
 
 Edit the two copies, not the `.example` files:
-- `terraform.tfvars`: `domain_name`, and anything else from the table below;
+- `terraform.tfvars`: `domain_name`, `pretix_organizer` and `pretix_checkin_list_id` (the two values from 2.3), and anything else from the table below;
 - `backend.hcl`: `bucket`, the bucket from 3.2, and `region`, the bucket's region from 3.2 (the app's own `aws_region` in `terraform.tfvars` may be another one). Leave `key`, `encrypt` and `use_lockfile` as they are; `true` has no quotes.
 
 ```bash
@@ -240,6 +240,8 @@ cd ..
 | Variable | Default | Meaning |
 |---|---|---|
 | `domain_name` | — (required) | Your Route 53 zone: `example.org`, or `checkin.example.org` for a zone made just for the page. In lowercase, without a dot at the end |
+| `pretix_organizer` | — (required) | Your pretix organizer slug from 2.3: lowercase letters, digits and hyphens, for example `my-community`. A new value works within 5 minutes after `terraform apply` |
+| `pretix_checkin_list_id` | — (required) | Your check-in list ID from 2.3: digits only, in quotes, for example `"123456"`. A new value works within 5 minutes after `terraform apply` |
 | `subdomain` | `checkin` | The page lives at `https://<subdomain>.<domain_name>`. One word without dots: lowercase letters, digits and hyphens. Set `""` to put the page at `domain_name` itself, only with a zone made just for the page (1.1). The page's name must not already have a record in the zone |
 | `aws_region` | `eu-central-1` | Region for everything, the certificate included |
 | `event_timezone` | `Europe/Bratislava` | Your event's time zone, for "Already checked in at 09:14". Set it unless the event is in Central European time, with an IANA name such as `Europe/London` |
@@ -250,15 +252,7 @@ cd ..
 
 When it is done, `terraform -chdir=infrastructure output scanner_url` shows your page's address.
 
-## 3.4 Tell AWS your pretix event
-
-```bash
-scripts/set-pretix-config.sh --organizer <slug> --list <check-in list ID>
-```
-
-Give both the first time; later you can give either one alone, to change only that one. The slug is lowercase letters, digits and hyphens, for example `my-community`; the list ID is digits only, for example `123456`. The Lambda uses a new value within 5 minutes.
-
-## 3.5 Store the pretix token and choose the staff PIN
+## 3.4 Store the pretix token and choose the staff PIN
 
 ```bash
 scripts/set-secrets.sh --token     # paste the token from 2.4; it is not shown
@@ -271,7 +265,7 @@ Both are stored encrypted in SSM, never in Terraform's state, and not kept in an
 
 **The PIN on the phones.** The staff type the PIN once on each phone; it stays there until someone taps **Change PIN**. **Start** accepts any PIN: a wrong one shows at the first scan, as the PIN screen with "Wrong PIN". That ticket was **not** checked in, so type the right PIN and scan it again. After a new PIN (`scripts/set-secrets.sh --pin`), every phone shows "Wrong PIN" at its next scan, and the staff type the new one. If a phone with the PIN is lost, set a new PIN.
 
-## 3.6 A key for the print computer
+## 3.5 A key for the print computer
 
 ```bash
 scripts/create-print-laptop-key.sh
@@ -281,7 +275,7 @@ It creates an access key for the print computer's own AWS user, which may only r
 
 The script refuses while the user already has a key. If you lost the output, run `scripts/delete-print-laptop-keys.sh` (type `delete` when it asks), then this script again.
 
-## 3.7 Preparation of settings and package necessary for the print computer
+## 3.6 Preparation of settings and package necessary for the print computer
 
 On Admin computer:
 ```bash
@@ -298,7 +292,7 @@ Edit the copy, `app/print_laptop/.env` (not `.env.example`), for example with `n
 | `ROLL` | `62mm` for DK-22205. For another roll, `--check` shows its name in step 4.4. The value must equal the loaded roll's name exactly, without the quotes `--check` puts around it. Empty: the program compares the loaded roll with the roll each template is made for instead. While no roll is loaded, or the roll does not match, the program prints no stickers and shows ❌ with the reason. |
 | `STICKER_ATTENDEE_TEXT`, `STICKER_YEAR_TEXT` | The sticker's second and third line, for example `Attendee` and `2027` |
 | `STICKER_…_FONT`, `_SIZE`, `_BOLD` | Fonts and sizes, if you want others than the template's |
-| `AWS_PROFILE`, `AWS_REGION` | Leave `cd-print-laptop` (the name in the files from 3.6) and your region from 3.3 |
+| `AWS_PROFILE`, `AWS_REGION` | Leave `cd-print-laptop` (the name in the files from 3.5) and your region from 3.3 |
 | `QUEUE_URL` | The value just printed |
 
 Then build the package for the print computer:
@@ -336,7 +330,7 @@ You do not have to make them: the repository has both, in `app/print_laptop/temp
 | `app/print_laptop/templates/attendee.lbx` | `C:\Users\<you>\Desktop\attendee.lbx` | `TEMPLATE_PATH` |
 | `app/print_laptop/templates/attendee-2line.lbx` | `C:\Users\<you>\Desktop\attendee-2line.lbx` | `TEMPLATE_2LINE_PATH` |
 
-`<you>` is your Windows user name: the same one you put into those two keys in step 3.7, the last part of what `echo $env:USERPROFILE` shows in PowerShell. `attendee.lbx` prints names up to 16 characters (`STICKER_NAME_FIT_CHARS`) on one line; the 16 include the space between first and last name. `attendee-2line.lbx` prints longer names on two lines, first name and last name, each shrunk only as much as needed. A long name that is a single word stays on one line, smaller. With `TEMPLATE_2LINE_PATH` empty, every long name stays on one line, smaller.
+`<you>` is your Windows user name: the same one you put into those two keys in step 3.6, the last part of what `echo $env:USERPROFILE` shows in PowerShell. `attendee.lbx` prints names up to 16 characters (`STICKER_NAME_FIT_CHARS`) on one line; the 16 include the space between first and last name. `attendee-2line.lbx` prints longer names on two lines, first name and last name, each shrunk only as much as needed. A long name that is a single word stays on one line, smaller. With `TEMPLATE_2LINE_PATH` empty, every long name stays on one line, smaller.
 
 They are made for the **DK-22205** roll (62 mm continuous paper) and a **62 × 40 mm** label, in Arial. With that roll there is nothing more to do.
 
@@ -422,7 +416,7 @@ On the event day, double-click **`start-print-laptop.bat`** in the `print-laptop
 | amber "Not checked in yet — scan the ticket instead" | Reprint was asked for a ticket that is not checked in. Scan it, or tap it in the search. |
 | red "Not valid — please write your name on your badge" | Refused: pretix does not accept the ticket (for example cancelled, unknown or fake), or the QR code holds more than 200 characters. Also a ticket without a name: pretix has checked that one in, but there is no name to print. |
 | grey, with **Try again**: "No answer — try again", "Too many scans at once — try again", "pretix did not answer — try again", "pretix is busy — try again in a few seconds", "Something was wrong with the request — try again" or "Something went wrong — try again" | A technical failure. Tap **Try again**: it sends the same request again, with the same nonce, so it never checks a ticket in or prints a sticker twice. |
-| grey "The system can't use pretix — call the organizer" | A setting is missing or wrong (redo 3.4 and 3.5), or pretix refused the token, the organizer or the check-in list. |
+| grey "The system can't use pretix — call the organizer" | A setting is missing or wrong (check `pretix_organizer` and `pretix_checkin_list_id` from 3.3, and redo 3.4), or pretix refused the token, the organizer or the check-in list. |
 
 Green, amber and red each have their own beeps and vibration; grey has none. iPhones do not vibrate from web pages.
 
@@ -444,7 +438,6 @@ Every script except `build-print-laptop-zip.sh` reads its AWS names from `terraf
 
 | Script | Use it to |
 |---|---|
-| `set-pretix-config.sh [--organizer <slug>] [--list <id>]` | Point AWS at your pretix organizer and check-in list; give either or both. The slug is lowercase letters, digits and hyphens; the list ID is digits only |
 | `set-secrets.sh --token` / `--pin` | Store the pretix token; choose or generate the staff PIN |
 | `create-print-laptop-key.sh` | Make the print computer's AWS key |
 | `delete-print-laptop-keys.sh` | Cut off a lost or stolen print computer key at once (asks you to type `delete`) |

@@ -79,6 +79,26 @@ variable "pretix_base_url" {
   }
 }
 
+variable "pretix_organizer" {
+  type        = string
+  description = "pretix organizer slug, as in https://pretix.eu/control/organizer/<slug>/, for example my-community."
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]*$", var.pretix_organizer))
+    error_message = "The pretix organizer must be a slug of lowercase letters, digits and hyphens, for example my-community."
+  }
+}
+
+variable "pretix_checkin_list_id" {
+  type        = string
+  description = "ID of the pretix check-in list the scanner checks tickets in on, as in .../checkinlists/<id>/, for example 123456."
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.pretix_checkin_list_id))
+    error_message = "The check-in list ID must be digits only, for example 123456."
+  }
+}
+
 variable "event_timezone" {
   type        = string
   description = "IANA time zone of the event, for the \"checked in at\" time."
