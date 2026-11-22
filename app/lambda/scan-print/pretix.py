@@ -187,7 +187,9 @@ def _url(config: Config, base_url: str, endpoint: str) -> str:
     Args:
         config: For the organizer slug.
         base_url: pretix's address.
-        endpoint: The endpoint, for example "redeem/".
+        endpoints: 
+            /redeem/ - requires POST - verifies the ticket
+            /search/ - requires GET - finds ticket for reprinthow .
 
     Returns:
         The full URL.
