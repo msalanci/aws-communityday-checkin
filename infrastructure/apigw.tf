@@ -38,6 +38,9 @@ resource "aws_apigatewayv2_stage" "default" {
   default_route_settings {
     throttling_burst_limit = 100
     throttling_rate_limit  = 50
+    # Emergency limit if someone floods the API: delete the two lines above, uncomment these two, terraform apply.
+    # throttling_burst_limit = 20
+    # throttling_rate_limit  = 5
   }
 
   access_log_settings {
