@@ -4,26 +4,14 @@
 
 Check-in with name stickers for a one-day community event that sells (or gives away) its tickets in [pretix](https://pretix.eu).
 
-At the entrance, volunteers scan each attendee's ticket QR code with their phone. The ticket is checked in at pretix, and a Brother label printer next to the desk prints a sticker with the attendee's name, which goes on their badge. Scanning the same ticket again shows "Already checked in at 09:14"; a cancelled or fake ticket shows "Not valid".
+At the entrance, volunteers scan each attendee's ticket QR code with their phone. The ticket is checked in at pretix, and a Brother label printer next to the desk prints a sticker with the attendee's name, which goes on their badge. Scanning the same ticket again shows "*Already checked in at 09:14*"; a cancelled or fake ticket shows "*Not valid*".
 
-```
- Phone (browser)                AWS (your account)                       pretix
- ┌──────────────┐  HTTPS   ┌──────────────────────────┐   check in   ┌────────────┐
- │ scanner page │ ───────► │ API Gateway + Lambda     │ ───────────► │ your event │
- └──────────────┘          │ at checkin.<your domain> │              └────────────┘
-                           └────────────┬─────────────┘
-                                        │ print request (name only)
-                                        ▼
-                           ┌──────────────────────────┐
-                           │ SQS queue                │
-                           └──────────────────────────┘
-                                        ▲
-                                        │ pulls (HTTPS)
- At the desk               ┌────────────┴─────────────┐   USB   ┌───────────────────┐
-                           │ Windows computer         │ ──────► │ Brother QL-820NWB │
-                           │ with the print program   │         │ label printer     │
-                           └──────────────────────────┘         └───────────────────┘
-```
+![Logical design](docs/images/design-logical1.png)
+
+It could be easily scaled, when multiple staff members using one single PC and one printer.
+
+![Logical design](docs/images/design-logical2.png)
+
 
 AWS keeps no attendee database: pretix holds the registrations, and a name exists in AWS only while its print request waits in the queue. Normally that is a few seconds. If the print computer is off or its prints fail, a request waits up to 1 day in the queue, and one that failed 5 times waits in a second queue (the dead-letter queue) until it is 2 days old. The logs keep order codes, never names, for 7 days. The cost is a few cents for the day, plus the domain.
 
@@ -31,6 +19,11 @@ There are three places you work in:
 - **pretix**, in the browser: the event, its check-in list and an API token;
 - **the admin computer** (macOS or Linux): deploys everything to AWS and stores the settings;
 - **the print computer** (Windows): runs the program that prints the stickers.
+
+Behind the scenes, it runs on AWS (except your own hardware):
+
+![Logical design](docs/images/design-full.png)
+
 
 In this guide, **`example.org` stands for your domain**; put your own wherever it appears.
 
@@ -422,11 +415,38 @@ Green, amber and red each have their own beeps and vibration; grey has none. iPh
 
 **Search and Reprint.** The **Search** tab finds an attendee whose QR code cannot be scanned: type at least 3 letters of the name or the order code (not the email). Accents and capitals do not matter, so `novak` finds "Novák". Each row shows the name, the order code and "✓ 09:14" once checked in. Tap a row without ✓ to check that attendee in (a sticker prints); tap a row with ✓ to print another sticker. **Reprint** on an amber card does the same for the ticket just scanned. A reprint never checks a ticket in again, and tapping it once prints one sticker. The camera rests while the Search tab is open.
 
-**After the event**, on the admin computer, in this order:
+---
+
+# 6. Turning it off
+
+## 6.1 Turn off the page only
+
+For the weeks between deploying and the event, or if someone floods the page with requests, turn off only the page's address and keep everything else:
+
+```bash
+terraform -chdir=infrastructure destroy -target=aws_apigatewayv2_domain_name.scanner    # type yes
+```
+
+It removes three things: the page's custom domain in API Gateway, its link to the API, and its DNS record. The API's default address is already disabled, so the page then has no address at all: no request reaches API Gateway or the Lambdas, so they cost nothing. Everything else stays: the Lambdas, the queues, the print computer's AWS user and key, the pretix token and the PIN.
+
+Terraform warns that `-target` is not for routine use; that is expected here.
+
+To turn the page on again:
+
+```bash
+terraform -chdir=infrastructure apply                     # type yes
+```
+
+The page works again within a few minutes. Any later `terraform apply`, for whatever reason, turns the page on too.
+
+## 6.2 Remove everything
+
+After the event, on the admin computer, in this order:
 1. `scripts/delete-secrets.sh` (type `delete`): removes the pretix token and the staff PIN; within 5 minutes the page stops working. Run it first: it reads Terraform's outputs, which `destroy` removes.
 2. `terraform -chdir=infrastructure destroy` (type `yes`): removes everything step 3.3 created, the print computer's AWS user and its key included.
-3. The state bucket from 3.2 stays: it is protected from `destroy`. Keep it for next year.
-4. If you made a zone just for the page (1.1), it stays too, because Terraform did not create it. Before you ever delete it, remove its NS record at your DNS provider.
+3. In pretix, delete the API token from 2.4 (your organizer → Teams → the team → API tokens). The token can still call pretix until you do.
+4. The state bucket from 3.2 stays: it is protected from `destroy`. Keep it for next year.
+5. If you made a zone just for the page (1.1), it stays too, because Terraform did not create it. Before you ever delete it, remove its NS record at your DNS provider.
 
 ---
 
